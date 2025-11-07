@@ -265,7 +265,7 @@ async function translateTargetsInBatches(
   }
 }
 
-// カスタムポップアップのスタイルを追加
+// 原文表示用のスタイルを追加
 function injectTooltipStyles(): void {
   if (document.getElementById("translator-tooltip-styles")) {
     return; // 既に追加済み
@@ -274,268 +274,102 @@ function injectTooltipStyles(): void {
   const style = document.createElement("style");
   style.id = "translator-tooltip-styles";
   style.textContent = `
-    .translator-original-popup {
-      position: fixed;
-      background: #1a1a1a;
-      color: #fff;
-      padding: 12px 16px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      max-width: 500px;
-      max-height: 400px;
-      overflow-y: auto;
-      z-index: 2147483647;
-      font-size: 14px;
-      line-height: 1.6;
-      pointer-events: none;
+    .translator-original-display {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      color: #333;
+      padding: 8px 10px;
+      margin-bottom: 4px;
+      border-left: 3px solid #4a90e2;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.5;
       word-wrap: break-word;
       white-space: pre-wrap;
       font-family: system-ui, -apple-system, sans-serif;
-      border: 1px solid #333;
+      z-index: 2147483647;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      pointer-events: auto;
     }
-    .translator-original-popup-header {
-      display: block;
+    .translator-original-display::before {
+      content: "原文: ";
       font-weight: bold;
-      margin-bottom: 8px;
-      color: #a0a0a0;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      color: #4a90e2;
+      font-size: 11px;
     }
-    .translator-original-popup-content {
-      color: #fff;
-      white-space: pre-wrap;
-      word-wrap: break-word;
+    .translator-original-display.pinned {
+      border-left-color: #ff6b6b;
+      background: #fff5f5;
+    }
+    .translator-original-display.pinned::before {
+      content: "原文 (固定): ";
+    }
+    .translator-pin-icon {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: auto;
+      z-index: 1;
+    }
+    .translator-original-display:hover .translator-pin-icon {
+      opacity: 1;
+    }
+    .translator-original-display.pinned .translator-pin-icon {
+      opacity: 1;
+    }
+    .translator-pin-icon svg {
+      width: 100%;
+      height: 100%;
+      fill: #666;
+    }
+    .translator-pin-icon:hover svg {
+      fill: #4a90e2;
+    }
+    .translator-original-display.pinned .translator-pin-icon svg {
+      fill: #ff6b6b;
+    }
+    .translator-original-display.pinned .translator-pin-icon:hover svg {
+      fill: #ff4444;
     }
     [data-translated="true"] {
-      cursor: help;
       position: relative;
     }
   `;
   document.head.appendChild(style);
 }
 
-// カスタムポップアップ要素
-let tooltipElement: HTMLElement | null = null;
-
-// イベントリスナーを管理するためのMap（要素 -> AbortController）
-const eventControllers = new WeakMap<HTMLElement, AbortController>();
-
 /**
- * カスタムポップアップを作成
+ * 要素内のすべての翻訳済みテキストノードの原文を取得
  */
-function createTooltipElement(): HTMLElement {
-  if (tooltipElement) {
-    return tooltipElement;
-  }
-  tooltipElement = document.createElement("div");
-  tooltipElement.className = "translator-original-popup";
-  tooltipElement.style.display = "none";
-  document.body.appendChild(tooltipElement);
-  return tooltipElement;
-}
-
-/**
- * マウス位置にあるテキストノードの原文を取得
- */
-function getOriginalTextAtPosition(element: HTMLElement, x: number, y: number): string | null {
-  try {
-    // document.caretRangeFromPointを使用してマウス位置のテキストノードを取得
-    let textNode: Node | null = null;
-    
-    if (document.caretRangeFromPoint) {
-      const range = document.caretRangeFromPoint(x, y);
-      if (range) {
-        textNode = range.startContainer;
-      }
-    } else if ((document as any).caretPositionFromPoint) {
-      const point = (document as any).caretPositionFromPoint(x, y);
-      if (point) {
-        textNode = point.offsetNode;
-      }
-    }
-
-    // テキストノードが見つかった場合
-    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-      const nodeId = nodeIdMap.get(textNode);
-      if (nodeId) {
-        const key = `text:${nodeId}`;
-        const state = translationState.get(key);
-        if (state && state.current !== state.original) {
-          return state.original;
-        }
-      }
-    }
-
-    // テキストノードが見つからない場合、要素内のすべてのテキストノードをチェック
-    // マウス位置に最も近いテキストノードを探す
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    let closestNode: Node | null = null;
-    let minDistance = Infinity;
-
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      const rect = range.getBoundingClientRect();
-      
-      // マウス位置がこのテキストノードの範囲内かチェック
-      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-        const distance = Math.sqrt(
-          Math.pow(x - (rect.left + rect.width / 2), 2) + 
-          Math.pow(y - (rect.top + rect.height / 2), 2)
-        );
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestNode = node;
-        }
-      }
-    }
-
-    if (closestNode) {
-      const nodeId = nodeIdMap.get(closestNode);
-      if (nodeId) {
-        const key = `text:${nodeId}`;
-        const state = translationState.get(key);
-        if (state && state.current !== state.original) {
-          return state.original;
-        }
-      }
-    }
-
-    // それでも見つからない場合、要素内のすべての原文を結合
-    const walker2 = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    const texts: string[] = [];
-    while (walker2.nextNode()) {
-      const node = walker2.currentNode;
-      const nodeId = nodeIdMap.get(node);
-      if (nodeId) {
-        const key = `text:${nodeId}`;
-        const state = translationState.get(key);
-        if (state && state.current !== state.original) {
-          texts.push(state.original);
-        }
-      }
-    }
-    return texts.length > 0 ? texts.join(" ") : null;
-  } catch (error) {
-    console.error("原文取得エラー:", error);
-    return null;
-  }
-}
-
-/**
- * ポップアップを表示
- */
-function showTooltip(element: HTMLElement, original: string | null = null): void {
-  // 翻訳済みでない場合は表示しない
-  if (element.getAttribute("data-translated") !== "true") {
-    return;
-  }
-
-  const tooltip = createTooltipElement();
+function getAllOriginalTexts(element: HTMLElement): string[] {
+  const texts: string[] = [];
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   
-  // ヘッダーとコンテンツを分けて表示
-  if (!tooltip.querySelector(".translator-original-popup-header")) {
-    const header = document.createElement("div");
-    header.className = "translator-original-popup-header";
-    header.textContent = "原文";
-    tooltip.appendChild(header);
-    
-    const content = document.createElement("div");
-    content.className = "translator-original-popup-content";
-    tooltip.appendChild(content);
-  }
-  
-  const content = tooltip.querySelector(".translator-original-popup-content");
-  if (content) {
-    if (original) {
-      content.textContent = original;
-    } else {
-      // フォールバック: 要素内のすべての原文を結合
-      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      const texts: string[] = [];
-      while (walker.nextNode()) {
-        const node = walker.currentNode;
-        const nodeId = nodeIdMap.get(node);
-        if (nodeId) {
-          const key = `text:${nodeId}`;
-          const state = translationState.get(key);
-          if (state && state.current !== state.original) {
-            texts.push(state.original);
-          }
-        }
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const nodeId = nodeIdMap.get(node);
+    if (nodeId) {
+      const key = `text:${nodeId}`;
+      const state = translationState.get(key);
+      if (state && state.current !== state.original) {
+        texts.push(state.original);
       }
-      content.textContent = texts.join(" ");
     }
   }
   
-  tooltip.style.display = "block";
-
-  const updatePosition = (e: MouseEvent) => {
-    // マウス位置にあるテキストノードの原文を取得
-    const originalText = getOriginalTextAtPosition(element, e.clientX, e.clientY);
-    if (originalText && content) {
-      content.textContent = originalText;
-    }
-
-    const padding = 10;
-    let x = e.clientX + padding;
-    let y = e.clientY + padding;
-
-    // 画面外に出ないように調整
-    const rect = tooltip.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    // 右端を超える場合
-    if (x + rect.width > viewportWidth) {
-      x = e.clientX - rect.width - padding;
-      // 左端を超える場合は右端に配置
-      if (x < 0) {
-        x = viewportWidth - rect.width - padding;
-      }
-    }
-
-    // 下端を超える場合
-    if (y + rect.height > viewportHeight) {
-      y = e.clientY - rect.height - padding;
-      // 上端を超える場合は下端に配置
-      if (y < 0) {
-        y = viewportHeight - rect.height - padding;
-      }
-    }
-
-    tooltip.style.left = `${x}px`;
-    tooltip.style.top = `${y}px`;
-  };
-
-  const hideTooltip = () => {
-    tooltip.style.display = "none";
-  };
-
-  // AbortControllerを使ってイベントリスナーを管理
-  const controller = new AbortController();
-  const options = { signal: controller.signal };
-
-  element.addEventListener("mousemove", updatePosition, options);
-  element.addEventListener("mouseleave", hideTooltip, options);
-
-  // 既存のコントローラーがあれば中止
-  const existingController = eventControllers.get(element);
-  if (existingController) {
-    existingController.abort();
-  }
-  eventControllers.set(element, controller);
-
-  // 初期位置を設定
-  const rect = element.getBoundingClientRect();
-  tooltip.style.left = `${rect.left + 10}px`;
-  tooltip.style.top = `${rect.bottom + 10}px`;
+  return texts;
 }
 
 /**
- * 原文をポップアップとして追加
+ * マウスオーバー時に原文を要素の上に表示
  */
 function addOriginalTooltip(target: TranslationTarget, original: string): void {
   // スタイルを注入
@@ -543,7 +377,7 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
 
   if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
     const parent = target.node.parentElement;
-    if (parent) {
+    if (parent && !parent.hasAttribute("data-tooltip-handler-added")) {
       // 既存のtitle属性を保存（元のtitleがあれば）
       if (!parent.hasAttribute("data-original-title")) {
         const existingTitle = parent.getAttribute("title");
@@ -553,15 +387,86 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
       }
       // 翻訳済みであることを示すマーカーを追加
       parent.setAttribute("data-translated", "true");
+      parent.setAttribute("data-tooltip-handler-added", "true");
       
-      // マウスオーバーイベントを追加（既に追加されていない場合のみ）
-      if (!parent.hasAttribute("data-tooltip-attached")) {
-        parent.setAttribute("data-tooltip-attached", "true");
-        parent.addEventListener("mouseenter", (e) => {
-          // マウス位置に応じて原文を取得するため、originalはnullを渡す
-          showTooltip(parent, null);
-        });
-      }
+      // マウスオーバー時に原文を表示
+      parent.addEventListener("mouseenter", () => {
+        // 既に固定表示されている場合は何もしない
+        const existing = parent.querySelector(".translator-original-display.pinned");
+        if (existing) {
+          return;
+        }
+        
+        // 既存の原文表示要素があれば削除
+        const existingNonPinned = parent.querySelector(".translator-original-display");
+        if (existingNonPinned) {
+          existingNonPinned.remove();
+        }
+        
+        // 要素内のすべての原文を取得
+        const allOriginals = getAllOriginalTexts(parent);
+        if (allOriginals.length > 0) {
+          // 原文表示要素を作成
+          const originalDisplay = document.createElement("div");
+          originalDisplay.className = "translator-original-display";
+          originalDisplay.textContent = allOriginals.join(" ");
+          
+          // ピン止めアイコンを作成
+          const pinIcon = document.createElement("div");
+          pinIcon.className = "translator-pin-icon";
+          pinIcon.innerHTML = `
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12M8.8,14L10,12.8V4H14V12.8L15.2,14H8.8Z"/>
+            </svg>
+          `;
+          
+          // ピンアイコンをクリックで固定/解除
+          pinIcon.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (originalDisplay.classList.contains("pinned")) {
+              originalDisplay.classList.remove("pinned");
+              originalDisplay.remove();
+            } else {
+              originalDisplay.classList.add("pinned");
+            }
+          });
+          
+          originalDisplay.appendChild(pinIcon);
+          
+          // 原文表示要素の上にマウスがある間は親要素のmouseleaveを無視
+          originalDisplay.addEventListener("mouseenter", (e) => {
+            e.stopPropagation();
+          });
+          
+          originalDisplay.addEventListener("mouseleave", (e) => {
+            e.stopPropagation();
+            // 固定されていない場合のみ削除
+            if (!originalDisplay.classList.contains("pinned")) {
+              originalDisplay.remove();
+            }
+          });
+          
+          // 親要素の最初の子として挿入
+          if (parent.firstChild) {
+            parent.insertBefore(originalDisplay, parent.firstChild);
+          } else {
+            parent.appendChild(originalDisplay);
+          }
+        }
+      });
+      
+      // マウスアウト時に原文表示を削除（固定されていない場合のみ、かつ原文表示要素の上にマウスがない場合）
+      parent.addEventListener("mouseleave", (e) => {
+        const originalDisplay = parent.querySelector(".translator-original-display");
+        if (originalDisplay && !originalDisplay.classList.contains("pinned")) {
+          // マウスが原文表示要素に移動した場合は削除しない
+          const relatedTarget = e.relatedTarget as Node | null;
+          if (relatedTarget && originalDisplay.contains(relatedTarget)) {
+            return;
+          }
+          originalDisplay.remove();
+        }
+      });
     }
   } else if (target.type === "attr" && target.node instanceof HTMLElement) {
     // 属性の場合は、要素に設定
@@ -583,20 +488,92 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
       element.setAttribute(`data-original-${attrKey}`, state.original);
     }
     
-    // マウスオーバーイベントを追加（既に追加されていない場合のみ）
-    if (!element.hasAttribute("data-tooltip-attached")) {
-      element.setAttribute("data-tooltip-attached", "true");
-      element.addEventListener("mouseenter", (e) => {
-        // すべての属性の原文を取得して表示
+    // マウスオーバー時に原文を表示（既に追加されていない場合のみ）
+    if (!element.hasAttribute("data-tooltip-handler-added")) {
+      element.setAttribute("data-tooltip-handler-added", "true");
+      
+      element.addEventListener("mouseenter", () => {
+        // 既に固定表示されている場合は何もしない
+        const existing = element.querySelector(".translator-original-display.pinned");
+        if (existing) {
+          return;
+        }
+        
+        // 既存の原文表示要素があれば削除
+        const existingNonPinned = element.querySelector(".translator-original-display");
+        if (existingNonPinned) {
+          existingNonPinned.remove();
+        }
+        
+        // すべての属性の原文を取得
         const allOriginals: string[] = [];
         for (const key of config.attrKeys) {
           const originalText = element.getAttribute(`data-original-${key}`);
           if (originalText) {
-            allOriginals.push(`${key}: ${originalText}`);
+            allOriginals.push(originalText);
           }
         }
+        
         if (allOriginals.length > 0) {
-          showTooltip(element, allOriginals.join("\n"));
+          // 原文表示要素を作成
+          const originalDisplay = document.createElement("div");
+          originalDisplay.className = "translator-original-display";
+          originalDisplay.textContent = allOriginals.join(" / ");
+          
+          // ピン止めアイコンを作成
+          const pinIcon = document.createElement("div");
+          pinIcon.className = "translator-pin-icon";
+          pinIcon.innerHTML = `
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12M8.8,14L10,12.8V4H14V12.8L15.2,14H8.8Z"/>
+            </svg>
+          `;
+          
+          // ピンアイコンをクリックで固定/解除
+          pinIcon.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (originalDisplay.classList.contains("pinned")) {
+              originalDisplay.classList.remove("pinned");
+              originalDisplay.remove();
+            } else {
+              originalDisplay.classList.add("pinned");
+            }
+          });
+          
+          originalDisplay.appendChild(pinIcon);
+          
+          // 原文表示要素の上にマウスがある間は親要素のmouseleaveを無視
+          originalDisplay.addEventListener("mouseenter", (e) => {
+            e.stopPropagation();
+          });
+          
+          originalDisplay.addEventListener("mouseleave", (e) => {
+            e.stopPropagation();
+            // 固定されていない場合のみ削除
+            if (!originalDisplay.classList.contains("pinned")) {
+              originalDisplay.remove();
+            }
+          });
+          
+          // 要素の最初の子として挿入
+          if (element.firstChild) {
+            element.insertBefore(originalDisplay, element.firstChild);
+          } else {
+            element.appendChild(originalDisplay);
+          }
+        }
+      });
+      
+      // マウスアウト時に原文表示を削除（固定されていない場合のみ、かつ原文表示要素の上にマウスがない場合）
+      element.addEventListener("mouseleave", (e) => {
+        const originalDisplay = element.querySelector(".translator-original-display");
+        if (originalDisplay && !originalDisplay.classList.contains("pinned")) {
+          // マウスが原文表示要素に移動した場合は削除しない
+          const relatedTarget = e.relatedTarget as Node | null;
+          if (relatedTarget && originalDisplay.contains(relatedTarget)) {
+            return;
+          }
+          originalDisplay.remove();
         }
       });
     }
@@ -724,13 +701,17 @@ async function translatePage(targetLang: string = "ja"): Promise<void> {
  * 原文に戻す
  */
 function restoreOriginal(): void {
+  // 原文表示要素を削除
+  const originalDisplays = document.querySelectorAll(".translator-original-display");
+  originalDisplays.forEach((el) => el.remove());
+  
   for (const [key, state] of translationState.entries()) {
     const target = locateTargetByKey(key);
     if (target) {
       target.set(state.original);
       state.current = state.original;
       
-      // ポップアップと属性をクリーンアップ
+      // 属性をクリーンアップ
       if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
         const parent = target.node.parentElement;
         if (parent) {
@@ -742,14 +723,7 @@ function restoreOriginal(): void {
             parent.removeAttribute("title");
           }
           parent.removeAttribute("data-translated");
-          parent.removeAttribute("data-tooltip-attached");
-          
-          // イベントリスナーを削除
-          const controller = eventControllers.get(parent);
-          if (controller) {
-            controller.abort();
-            eventControllers.delete(parent);
-          }
+          parent.removeAttribute("data-tooltip-handler-added");
         }
       } else if (target.type === "attr" && target.node instanceof HTMLElement) {
         const element = target.node;
@@ -761,26 +735,14 @@ function restoreOriginal(): void {
           element.removeAttribute("title");
         }
         element.removeAttribute("data-translated");
-        element.removeAttribute("data-tooltip-attached");
+        element.removeAttribute("data-tooltip-handler-added");
         
         // 属性のdata属性も削除
         for (const key of config.attrKeys) {
           element.removeAttribute(`data-original-${key}`);
         }
-        
-        // イベントリスナーを削除
-        const controller = eventControllers.get(element);
-        if (controller) {
-          controller.abort();
-          eventControllers.delete(element);
-        }
       }
     }
-  }
-  
-  // ポップアップを非表示
-  if (tooltipElement) {
-    tooltipElement.style.display = "none";
   }
 }
 
