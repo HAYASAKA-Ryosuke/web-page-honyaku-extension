@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Popup</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; min-width: 280px; padding: 12px; }
+      button { padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; }
+      .row { margin-top: 10px; }
+      code { background: #f6f6f6; padding: 2px 6px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h3>翻訳拡張機能</h3>
+    
+    <div class="row">
+      <label for="apiKey" style="display: block; margin-bottom: 4px; font-size: 12px;">Claude API Key:</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-..." style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" />
+    </div>
+    <div class="row">
+      <label for="model" style="display: block; margin-bottom: 4px; font-size: 12px;">Model:</label>
+      <select id="model" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+        <option value="claude-haiku-4-5-20251001">Claude 4.5 Haiku</option>
+      </select>
+    </div>
+    <div class="row">
+      <button id="saveConfig" style="width: 100%;">設定を保存</button>
+    </div>
+    
+    <hr style="margin: 15px 0; border: none; border-top: 1px solid #ddd;">
+    
+    <div class="row"><button id="translatePage">ページ全体を翻訳</button></div>
+    <div class="row"><button id="restoreOriginal">原文に戻す</button></div>
+    <div class="row">Status: <code id="status">-</code></div>
+    
+    <hr style="margin: 15px 0; border: none; border-top: 1px solid #ddd;">
+    <div class="row"><button id="ping">Ping background</button></div>
+    <div class="row">Response: <code id="out">-</code></div>
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>
+

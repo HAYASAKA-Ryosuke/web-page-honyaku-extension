@@ -1,0 +1,22 @@
+{
+  "name": "translator-mailer-chrome-ext",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx --fix"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.15.0",
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.2.1",
+    "chrome-types": "^0.1.384",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  }
+}
