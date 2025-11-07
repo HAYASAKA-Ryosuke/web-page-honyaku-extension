@@ -56,6 +56,39 @@ saveConfigBtn.addEventListener("click", async () => {
 // 初期化時に設定を読み込む
 loadConfig();
 
+const translateSelectionBtn = document.getElementById("translateSelection") as HTMLButtonElement;
+
+// 選択テキストを翻訳
+translateSelectionBtn.addEventListener("click", async () => {
+  try {
+    statusEl.textContent = "翻訳中...";
+    translateSelectionBtn.disabled = true;
+    
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab.id) {
+      statusEl.textContent = "エラー: タブが見つかりません";
+      translateSelectionBtn.disabled = false;
+      return;
+    }
+    
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: "TRANSLATE_SELECTION",
+      targetLang: "ja"
+    });
+    
+    if (response?.success) {
+      statusEl.textContent = "✓ 翻訳完了";
+    } else {
+      statusEl.textContent = `✗ ${response?.message || "翻訳に失敗しました"}`;
+    }
+  } catch (error) {
+    console.error("翻訳エラー:", error);
+    statusEl.textContent = `✗ エラー: ${error instanceof Error ? error.message : "不明なエラー"}`;
+  } finally {
+    translateSelectionBtn.disabled = false;
+  }
+});
+
 // ページ全体を翻訳
 translateBtn.addEventListener("click", async () => {
   try {

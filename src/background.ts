@@ -29,11 +29,31 @@ async function callClaudeAPI(
     .map((text, index) => `${index + 1}. ${text}`)
     .join("\n");
 
-  const prompt = `以下のテキストを${targetLangName}に翻訳してください。各項目を番号付きリストの形式で返してください。元の番号を保持してください。
+//  const prompt = `以下のテキストを${targetLangName}に翻訳してください。各項目を番号付きリストの形式で返してください。元の番号を保持してください。
+//
+//${combinedText}
+//
+//翻訳結果のみを返してください。説明や追加のテキストは不要です。`;
+  const prompt = `以下の英語テキストを自然な日本語に翻訳してください。
 
+条件:
+- 直訳ではなく、自然な日本語として意味の流れを再構成してよい
+- 英語の文構造に引きずられず、日本語のリズムと焦点を優先する
+- 技術エッセイ風の語り口で、論理的だが人間味のあるトーンにする
+- 文体は「だ・である調」を用いる（文末は〜だ／〜である／〜なのだ等を使い分ける）
+- 専門用語は正確に訳し、必要なら英語を併記（例: 和型 (sum type)）
+- カタカナ語を乱用しない
+- 冗長な構文を避け、文の主語と述語の対応を明確にする
+- 段落ごとに一つの中心的な主張・感情が伝わるようにする
+- 英語的な語順を避け、日本人が自然に読める順序に並べ替える
+
+形式:
+- 元の番号を保持して、番号付きリストで返す
+- 翻訳結果のみを返す（説明不要）
+
+テキスト:
 ${combinedText}
-
-翻訳結果のみを返してください。説明や追加のテキストは不要です。`;
+  `
 
   console.log("[BG] Claude APIにリクエストを送信:", {
     model,
@@ -175,6 +195,29 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (tab?.id) {
     await chrome.action.setBadgeText({ text: "✓" });
     setTimeout(() => chrome.action.setBadgeText({ text: "" }), 600);
+  }
+  
+  if (info.menuItemId === 'translateSelection') {
+    if (tab?.id) {
+      try {
+        await chrome.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
+        const response = await chrome.tabs.sendMessage(tab.id, {
+          type: "TRANSLATE_SELECTION",
+          targetLang: "ja"
+        });
+        if (response?.success) {
+          await chrome.action.setBadgeText({ tabId: tab.id, text: "✓" });
+          setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        } else {
+          await chrome.action.setBadgeText({ tabId: tab.id, text: "✗" });
+          setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        }
+      } catch (error) {
+        console.error("翻訳エラー:", error);
+        await chrome.action.setBadgeText({ tabId: tab.id, text: "✗" });
+        setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+      }
+    }
   }
   
   if (info.menuItemId === 'translatePageInline') {

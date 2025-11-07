@@ -253,12 +253,433 @@ async function translateTargetsInBatches(
           const state = translationState.get(key);
           if (state) {
             state.current = translation;
+            // 原文をtitle属性に設定（ホバーで表示）
+            addOriginalTooltip(target, state.original);
           }
         }
       }
     } catch (error) {
       console.error("翻訳エラー:", error);
       // エラーが発生しても次のバッチを続行
+    }
+  }
+}
+
+// カスタムポップアップのスタイルを追加
+function injectTooltipStyles(): void {
+  if (document.getElementById("translator-tooltip-styles")) {
+    return; // 既に追加済み
+  }
+
+  const style = document.createElement("style");
+  style.id = "translator-tooltip-styles";
+  style.textContent = `
+    .translator-original-popup {
+      position: fixed;
+      background: #1a1a1a;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      max-height: 400px;
+      overflow-y: auto;
+      z-index: 2147483647;
+      font-size: 14px;
+      line-height: 1.6;
+      pointer-events: none;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      font-family: system-ui, -apple-system, sans-serif;
+      border: 1px solid #333;
+    }
+    .translator-original-popup-header {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #a0a0a0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .translator-original-popup-content {
+      color: #fff;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    [data-translated="true"] {
+      cursor: help;
+      position: relative;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// カスタムポップアップ要素
+let tooltipElement: HTMLElement | null = null;
+
+// イベントリスナーを管理するためのMap（要素 -> AbortController）
+const eventControllers = new WeakMap<HTMLElement, AbortController>();
+
+/**
+ * カスタムポップアップを作成
+ */
+function createTooltipElement(): HTMLElement {
+  if (tooltipElement) {
+    return tooltipElement;
+  }
+  tooltipElement = document.createElement("div");
+  tooltipElement.className = "translator-original-popup";
+  tooltipElement.style.display = "none";
+  document.body.appendChild(tooltipElement);
+  return tooltipElement;
+}
+
+/**
+ * マウス位置にあるテキストノードの原文を取得
+ */
+function getOriginalTextAtPosition(element: HTMLElement, x: number, y: number): string | null {
+  try {
+    // document.caretRangeFromPointを使用してマウス位置のテキストノードを取得
+    let textNode: Node | null = null;
+    
+    if (document.caretRangeFromPoint) {
+      const range = document.caretRangeFromPoint(x, y);
+      if (range) {
+        textNode = range.startContainer;
+      }
+    } else if ((document as any).caretPositionFromPoint) {
+      const point = (document as any).caretPositionFromPoint(x, y);
+      if (point) {
+        textNode = point.offsetNode;
+      }
+    }
+
+    // テキストノードが見つかった場合
+    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+      const nodeId = nodeIdMap.get(textNode);
+      if (nodeId) {
+        const key = `text:${nodeId}`;
+        const state = translationState.get(key);
+        if (state && state.current !== state.original) {
+          return state.original;
+        }
+      }
+    }
+
+    // テキストノードが見つからない場合、要素内のすべてのテキストノードをチェック
+    // マウス位置に最も近いテキストノードを探す
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let closestNode: Node | null = null;
+    let minDistance = Infinity;
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const rect = range.getBoundingClientRect();
+      
+      // マウス位置がこのテキストノードの範囲内かチェック
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        const distance = Math.sqrt(
+          Math.pow(x - (rect.left + rect.width / 2), 2) + 
+          Math.pow(y - (rect.top + rect.height / 2), 2)
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestNode = node;
+        }
+      }
+    }
+
+    if (closestNode) {
+      const nodeId = nodeIdMap.get(closestNode);
+      if (nodeId) {
+        const key = `text:${nodeId}`;
+        const state = translationState.get(key);
+        if (state && state.current !== state.original) {
+          return state.original;
+        }
+      }
+    }
+
+    // それでも見つからない場合、要素内のすべての原文を結合
+    const walker2 = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const texts: string[] = [];
+    while (walker2.nextNode()) {
+      const node = walker2.currentNode;
+      const nodeId = nodeIdMap.get(node);
+      if (nodeId) {
+        const key = `text:${nodeId}`;
+        const state = translationState.get(key);
+        if (state && state.current !== state.original) {
+          texts.push(state.original);
+        }
+      }
+    }
+    return texts.length > 0 ? texts.join(" ") : null;
+  } catch (error) {
+    console.error("原文取得エラー:", error);
+    return null;
+  }
+}
+
+/**
+ * ポップアップを表示
+ */
+function showTooltip(element: HTMLElement, original: string | null = null): void {
+  // 翻訳済みでない場合は表示しない
+  if (element.getAttribute("data-translated") !== "true") {
+    return;
+  }
+
+  const tooltip = createTooltipElement();
+  
+  // ヘッダーとコンテンツを分けて表示
+  if (!tooltip.querySelector(".translator-original-popup-header")) {
+    const header = document.createElement("div");
+    header.className = "translator-original-popup-header";
+    header.textContent = "原文";
+    tooltip.appendChild(header);
+    
+    const content = document.createElement("div");
+    content.className = "translator-original-popup-content";
+    tooltip.appendChild(content);
+  }
+  
+  const content = tooltip.querySelector(".translator-original-popup-content");
+  if (content) {
+    if (original) {
+      content.textContent = original;
+    } else {
+      // フォールバック: 要素内のすべての原文を結合
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const texts: string[] = [];
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const nodeId = nodeIdMap.get(node);
+        if (nodeId) {
+          const key = `text:${nodeId}`;
+          const state = translationState.get(key);
+          if (state && state.current !== state.original) {
+            texts.push(state.original);
+          }
+        }
+      }
+      content.textContent = texts.join(" ");
+    }
+  }
+  
+  tooltip.style.display = "block";
+
+  const updatePosition = (e: MouseEvent) => {
+    // マウス位置にあるテキストノードの原文を取得
+    const originalText = getOriginalTextAtPosition(element, e.clientX, e.clientY);
+    if (originalText && content) {
+      content.textContent = originalText;
+    }
+
+    const padding = 10;
+    let x = e.clientX + padding;
+    let y = e.clientY + padding;
+
+    // 画面外に出ないように調整
+    const rect = tooltip.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // 右端を超える場合
+    if (x + rect.width > viewportWidth) {
+      x = e.clientX - rect.width - padding;
+      // 左端を超える場合は右端に配置
+      if (x < 0) {
+        x = viewportWidth - rect.width - padding;
+      }
+    }
+
+    // 下端を超える場合
+    if (y + rect.height > viewportHeight) {
+      y = e.clientY - rect.height - padding;
+      // 上端を超える場合は下端に配置
+      if (y < 0) {
+        y = viewportHeight - rect.height - padding;
+      }
+    }
+
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  };
+
+  const hideTooltip = () => {
+    tooltip.style.display = "none";
+  };
+
+  // AbortControllerを使ってイベントリスナーを管理
+  const controller = new AbortController();
+  const options = { signal: controller.signal };
+
+  element.addEventListener("mousemove", updatePosition, options);
+  element.addEventListener("mouseleave", hideTooltip, options);
+
+  // 既存のコントローラーがあれば中止
+  const existingController = eventControllers.get(element);
+  if (existingController) {
+    existingController.abort();
+  }
+  eventControllers.set(element, controller);
+
+  // 初期位置を設定
+  const rect = element.getBoundingClientRect();
+  tooltip.style.left = `${rect.left + 10}px`;
+  tooltip.style.top = `${rect.bottom + 10}px`;
+}
+
+/**
+ * 原文をポップアップとして追加
+ */
+function addOriginalTooltip(target: TranslationTarget, original: string): void {
+  // スタイルを注入
+  injectTooltipStyles();
+
+  if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
+    const parent = target.node.parentElement;
+    if (parent) {
+      // 既存のtitle属性を保存（元のtitleがあれば）
+      if (!parent.hasAttribute("data-original-title")) {
+        const existingTitle = parent.getAttribute("title");
+        if (existingTitle) {
+          parent.setAttribute("data-original-title", existingTitle);
+        }
+      }
+      // 翻訳済みであることを示すマーカーを追加
+      parent.setAttribute("data-translated", "true");
+      
+      // マウスオーバーイベントを追加（既に追加されていない場合のみ）
+      if (!parent.hasAttribute("data-tooltip-attached")) {
+        parent.setAttribute("data-tooltip-attached", "true");
+        parent.addEventListener("mouseenter", (e) => {
+          // マウス位置に応じて原文を取得するため、originalはnullを渡す
+          showTooltip(parent, null);
+        });
+      }
+    }
+  } else if (target.type === "attr" && target.node instanceof HTMLElement) {
+    // 属性の場合は、要素に設定
+    const element = target.node;
+    const attrKey = target.key || "attr";
+    
+    if (!element.hasAttribute("data-original-title")) {
+      const existingTitle = element.getAttribute("title");
+      if (existingTitle) {
+        element.setAttribute("data-original-title", existingTitle);
+      }
+    }
+    element.setAttribute("data-translated", "true");
+    
+    // 属性の原文をdata属性に保存
+    const key = getTargetKey(target);
+    const state = translationState.get(key);
+    if (state && state.current !== state.original) {
+      element.setAttribute(`data-original-${attrKey}`, state.original);
+    }
+    
+    // マウスオーバーイベントを追加（既に追加されていない場合のみ）
+    if (!element.hasAttribute("data-tooltip-attached")) {
+      element.setAttribute("data-tooltip-attached", "true");
+      element.addEventListener("mouseenter", (e) => {
+        // すべての属性の原文を取得して表示
+        const allOriginals: string[] = [];
+        for (const key of config.attrKeys) {
+          const originalText = element.getAttribute(`data-original-${key}`);
+          if (originalText) {
+            allOriginals.push(`${key}: ${originalText}`);
+          }
+        }
+        if (allOriginals.length > 0) {
+          showTooltip(element, allOriginals.join("\n"));
+        }
+      });
+    }
+  }
+}
+
+/**
+ * 選択されたテキストを翻訳
+ */
+async function translateSelection(targetLang: string = "ja"): Promise<void> {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    console.log("選択されたテキストがありません");
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+  const selectedText = range.toString().trim();
+
+  if (!selectedText || selectedText.length < config.minTextLen) {
+    console.log("選択されたテキストが短すぎます");
+    return;
+  }
+
+  // 選択範囲を含む要素を取得
+  const container = range.commonAncestorContainer;
+  let rootElement: HTMLElement;
+  
+  if (container.nodeType === Node.TEXT_NODE) {
+    rootElement = container.parentElement || document.body;
+  } else if (container instanceof HTMLElement) {
+    rootElement = container;
+  } else {
+    rootElement = document.body;
+  }
+
+  // 選択範囲内のテキストノードを収集
+  const targets: TranslationTarget[] = [];
+  const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => {
+      if (!isVisibleTextNode(node)) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      // 選択範囲と重なるかチェック
+      const nodeRange = document.createRange();
+      nodeRange.selectNodeContents(node);
+      const intersects = range.intersectsNode(node);
+      return intersects ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
+  });
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const text = node.nodeValue;
+    if (text && /[^\s\u3000.,;:!?、。]/.test(text)) {
+      targets.push({
+        type: "text",
+        node,
+        get: () => node.nodeValue || "",
+        set: (value: string) => {
+          node.nodeValue = value;
+        },
+      });
+    }
+  }
+
+  if (targets.length === 0) {
+    console.log("翻訳対象が見つかりませんでした");
+    return;
+  }
+
+  // 原文を保存
+  saveOriginalTexts(targets);
+
+  // 翻訳を実行
+  await translateTargetsInBatches(targets, targetLang);
+  
+  // ツールチップを追加
+  for (const target of targets) {
+    const key = getTargetKey(target);
+    const state = translationState.get(key);
+    if (state && state.current !== state.original) {
+      addOriginalTooltip(target, state.original);
     }
   }
 }
@@ -283,6 +704,15 @@ async function translatePage(targetLang: string = "ja"): Promise<void> {
 
   // 3. バッチ翻訳を実行
   await translateTargetsInBatches(newTargets, targetLang);
+  
+  // ツールチップを追加（translateTargetsInBatches内で既に追加されているが、念のため）
+  for (const target of newTargets) {
+    const key = getTargetKey(target);
+    const state = translationState.get(key);
+    if (state && state.current !== state.original) {
+      addOriginalTooltip(target, state.original);
+    }
+  }
 
   // 4. 動的コンテンツ監視を開始
   if (config.observe && !observer) {
@@ -299,7 +729,58 @@ function restoreOriginal(): void {
     if (target) {
       target.set(state.original);
       state.current = state.original;
+      
+      // ポップアップと属性をクリーンアップ
+      if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
+        const parent = target.node.parentElement;
+        if (parent) {
+          const originalTitle = parent.getAttribute("data-original-title");
+          if (originalTitle) {
+            parent.setAttribute("title", originalTitle);
+            parent.removeAttribute("data-original-title");
+          } else {
+            parent.removeAttribute("title");
+          }
+          parent.removeAttribute("data-translated");
+          parent.removeAttribute("data-tooltip-attached");
+          
+          // イベントリスナーを削除
+          const controller = eventControllers.get(parent);
+          if (controller) {
+            controller.abort();
+            eventControllers.delete(parent);
+          }
+        }
+      } else if (target.type === "attr" && target.node instanceof HTMLElement) {
+        const element = target.node;
+        const originalTitle = element.getAttribute("data-original-title");
+        if (originalTitle) {
+          element.setAttribute("title", originalTitle);
+          element.removeAttribute("data-original-title");
+        } else {
+          element.removeAttribute("title");
+        }
+        element.removeAttribute("data-translated");
+        element.removeAttribute("data-tooltip-attached");
+        
+        // 属性のdata属性も削除
+        for (const key of config.attrKeys) {
+          element.removeAttribute(`data-original-${key}`);
+        }
+        
+        // イベントリスナーを削除
+        const controller = eventControllers.get(element);
+        if (controller) {
+          controller.abort();
+          eventControllers.delete(element);
+        }
+      }
     }
+  }
+  
+  // ポップアップを非表示
+  if (tooltipElement) {
+    tooltipElement.style.display = "none";
   }
 }
 
@@ -357,6 +838,14 @@ function startObserver(): void {
     if (freshTargets.length > 0 && currentLang) {
       saveOriginalTexts(freshTargets);
       await translateTargetsInBatches(freshTargets, currentLang);
+      // ツールチップを追加
+      for (const target of freshTargets) {
+        const key = getTargetKey(target);
+        const state = translationState.get(key);
+        if (state && state.current !== state.original) {
+          addOriginalTooltip(target, state.original);
+        }
+      }
     }
   });
 
@@ -613,6 +1102,22 @@ chrome.runtime.onMessage.addListener(
       translatePage(targetLang)
         .then(() => {
           sendResponse({ success: true, message: "翻訳が完了しました" });
+        })
+        .catch((error: Error) => {
+          console.error("翻訳エラー:", error);
+          sendResponse({
+            success: false,
+            message: `翻訳エラー: ${error.message}`,
+          });
+        });
+      return true; // 非同期レスポンスを許可
+    }
+
+    if (msg.type === "TRANSLATE_SELECTION") {
+      const targetLang = msg.targetLang || "ja";
+      translateSelection(targetLang)
+        .then(() => {
+          sendResponse({ success: true, message: "選択テキストの翻訳が完了しました" });
         })
         .catch((error: Error) => {
           console.error("翻訳エラー:", error);
