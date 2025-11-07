@@ -300,30 +300,35 @@ function injectTooltipStyles(): void {
       top: 100%;
       margin-top: 4px;
     }
-    .translator-original-display::before {
-      content: "原文: ";
+    .translator-original-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
       font-weight: bold;
       color: #4a90e2;
       font-size: 11px;
+    }
+    .translator-original-display.pinned .translator-original-header {
+      color: #ff6b6b;
+    }
+    .translator-original-content {
+      color: #333;
     }
     .translator-original-display.pinned {
       border-left-color: #ff6b6b;
       background: #fff5f5;
     }
-    .translator-original-display.pinned::before {
-      content: "原文 (固定): ";
-    }
     .translator-pin-icon {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      width: 18px;
-      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      width: 16px;
+      height: 16px;
       cursor: pointer;
       opacity: 0;
       transition: opacity 0.2s;
       pointer-events: auto;
-      z-index: 1;
+      flex-shrink: 0;
     }
     .translator-original-display:hover .translator-pin-icon {
       opacity: 1;
@@ -409,48 +414,60 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
           existingNonPinned.remove();
         }
         
-        // 要素内のすべての原文を取得
-        const allOriginals = getAllOriginalTexts(parent);
-        if (allOriginals.length > 0) {
-          // 要素の位置を取得して、上側か下側かを判定
-          const rect = parent.getBoundingClientRect();
-          const viewportHeight = window.innerHeight;
-          const spaceAbove = rect.top;
-          const spaceBelow = viewportHeight - rect.bottom;
-          
-          // 原文表示要素を作成
-          const originalDisplay = document.createElement("div");
-          originalDisplay.className = "translator-original-display";
-          originalDisplay.textContent = allOriginals.join(" ");
-          
-          // 位置を設定（上側に十分なスペースがない場合は下側に表示）
-          if (spaceAbove < 150 && spaceBelow > spaceAbove) {
-            originalDisplay.classList.add("position-bottom");
-          } else {
-            originalDisplay.classList.add("position-top");
-          }
-          
-          // ピン止めアイコンを作成
-          const pinIcon = document.createElement("div");
-          pinIcon.className = "translator-pin-icon";
-          pinIcon.innerHTML = `
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12M8.8,14L10,12.8V4H14V12.8L15.2,14H8.8Z"/>
-            </svg>
-          `;
-          
-          // ピンアイコンをクリックで固定/解除
-          pinIcon.addEventListener("click", (e) => {
-            e.stopPropagation();
-            if (originalDisplay.classList.contains("pinned")) {
-              originalDisplay.classList.remove("pinned");
-              originalDisplay.remove();
+          // 要素内のすべての原文を取得
+          const allOriginals = getAllOriginalTexts(parent);
+          if (allOriginals.length > 0) {
+            // 要素の位置を取得して、上側か下側かを判定
+            const rect = parent.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const spaceAbove = rect.top;
+            const spaceBelow = viewportHeight - rect.bottom;
+            
+            // 原文表示要素を作成
+            const originalDisplay = document.createElement("div");
+            originalDisplay.className = "translator-original-display";
+            
+            // 位置を設定（上側に十分なスペースがない場合は下側に表示）
+            if (spaceAbove < 150 && spaceBelow > spaceAbove) {
+              originalDisplay.classList.add("position-bottom");
             } else {
-              originalDisplay.classList.add("pinned");
+              originalDisplay.classList.add("position-top");
             }
-          });
-          
-          originalDisplay.appendChild(pinIcon);
+            
+            // ヘッダー部分を作成（「原文:」とピンアイコン）
+            const header = document.createElement("div");
+            header.className = "translator-original-header";
+            header.textContent = "原文:";
+            
+            // ピン止めアイコンを作成
+            const pinIcon = document.createElement("div");
+            pinIcon.className = "translator-pin-icon";
+            pinIcon.innerHTML = `
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12M8.8,14L10,12.8V4H14V12.8L15.2,14H8.8Z"/>
+              </svg>
+            `;
+            
+            // ピンアイコンをクリックで固定/解除
+            pinIcon.addEventListener("click", (e) => {
+              e.stopPropagation();
+              if (originalDisplay.classList.contains("pinned")) {
+                originalDisplay.classList.remove("pinned");
+                originalDisplay.remove();
+              } else {
+                originalDisplay.classList.add("pinned");
+              }
+            });
+            
+            header.appendChild(pinIcon);
+            
+            // コンテンツ部分を作成
+            const content = document.createElement("div");
+            content.className = "translator-original-content";
+            content.textContent = allOriginals.join(" ");
+            
+            originalDisplay.appendChild(header);
+            originalDisplay.appendChild(content);
           
           // 原文表示要素の上にマウスがある間は親要素のmouseleaveを無視
           originalDisplay.addEventListener("mouseenter", (e) => {
@@ -543,7 +560,6 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
           // 原文表示要素を作成
           const originalDisplay = document.createElement("div");
           originalDisplay.className = "translator-original-display";
-          originalDisplay.textContent = allOriginals.join(" / ");
           
           // 位置を設定（上側に十分なスペースがない場合は下側に表示）
           if (spaceAbove < 150 && spaceBelow > spaceAbove) {
@@ -551,6 +567,11 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
           } else {
             originalDisplay.classList.add("position-top");
           }
+          
+          // ヘッダー部分を作成（「原文:」とピンアイコン）
+          const header = document.createElement("div");
+          header.className = "translator-original-header";
+          header.textContent = "原文:";
           
           // ピン止めアイコンを作成
           const pinIcon = document.createElement("div");
@@ -572,7 +593,15 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
             }
           });
           
-          originalDisplay.appendChild(pinIcon);
+          header.appendChild(pinIcon);
+          
+          // コンテンツ部分を作成
+          const content = document.createElement("div");
+          content.className = "translator-original-content";
+          content.textContent = allOriginals.join(" / ");
+          
+          originalDisplay.appendChild(header);
+          originalDisplay.appendChild(content);
           
           // 原文表示要素の上にマウスがある間は親要素のmouseleaveを無視
           originalDisplay.addEventListener("mouseenter", (e) => {
