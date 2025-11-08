@@ -2,7 +2,7 @@
 import type { TranslationTarget } from "./types";
 import { state } from "./state";
 import { isVisibleTextNode, getTargetKey } from "./utils";
-import { saveOriginalTexts } from "./target-collector";
+import { collectTargets, saveOriginalTexts } from "./target-collector";
 import { translateTargetsInBatches } from "./translation";
 import { addOriginalTooltip } from "./tooltip";
 import { showErrorMessage } from "./ui";
@@ -37,33 +37,40 @@ export async function translateSelection(targetLang: string = "ja"): Promise<voi
     rootElement = document.body;
   }
 
-  // 選択範囲内のテキストノードを収集
+  // 選択範囲内のテキストノードを収集（グループ化を適用するためcollectTargetsを使用）
+  // ただし、選択範囲内の要素のみを対象とする
+  const allTargets = collectTargets(rootElement);
   const targets: TranslationTarget[] = [];
-  const walker = document.createTreeWalker(rootElement, NodeFilter.SHOW_TEXT, {
-    acceptNode: (node) => {
-      if (!isVisibleTextNode(node)) {
-        return NodeFilter.FILTER_REJECT;
-      }
+  
+  for (const target of allTargets) {
+    if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
       // 選択範囲と重なるかチェック
-      const nodeRange = document.createRange();
-      nodeRange.selectNodeContents(node);
-      const intersects = range.intersectsNode(node);
-      return intersects ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-    },
-  });
-
-  while (walker.nextNode()) {
-    const node = walker.currentNode;
-    const text = node.nodeValue;
-    if (text && /[^\s\u3000.,;:!?、。]/.test(text)) {
-      targets.push({
-        type: "text",
-        node,
-        get: () => node.nodeValue || "",
-        set: (value: string) => {
-          node.nodeValue = value;
-        },
-      });
+      const intersects = range.intersectsNode(target.node);
+      if (intersects) {
+        targets.push(target);
+      }
+    } else if (target.type === "text") {
+      // グループ化されたテキストノードの場合、最初のノードで判定
+      // get()で取得したテキストが選択範囲と重なるかチェック
+      const combinedText = target.get() || "";
+      if (combinedText.length > 0) {
+        // 最初のテキストノードの親要素が選択範囲と重なるかチェック
+        const firstNode = target.node;
+        if (firstNode.nodeType === Node.TEXT_NODE) {
+          const intersects = range.intersectsNode(firstNode);
+          if (intersects) {
+            targets.push(target);
+          }
+        }
+      }
+    } else if (target.type === "attr") {
+      // 属性の場合、要素が選択範囲と重なるかチェック
+      if (target.node instanceof HTMLElement) {
+        const intersects = range.intersectsNode(target.node);
+        if (intersects) {
+          targets.push(target);
+        }
+      }
     }
   }
 

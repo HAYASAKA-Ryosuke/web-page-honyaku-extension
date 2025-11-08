@@ -40,18 +40,10 @@ export function startObserver(): void {
               continue;
             }
             
-            if (isVisibleTextNode(node)) {
-              const text = node.nodeValue;
-              if (text && /[^\s\u3000.,;:!?、。]/.test(text)) {
-                newTargets.push({
-                  type: "text",
-                  node,
-                  get: () => node.nodeValue || "",
-                  set: (value: string) => {
-                    node.nodeValue = value;
-                  },
-                });
-              }
+            // テキストノードが追加された場合、親要素全体をcollectTargetsで処理
+            // これにより、グループ化が適用される
+            if (parent) {
+              newTargets.push(...collectTargets(parent));
             }
           }
         }

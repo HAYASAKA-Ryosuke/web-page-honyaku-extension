@@ -100,15 +100,31 @@ export function injectTooltipStyles(): void {
       font-size: 14px;
       line-height: 1.6;
       word-wrap: break-word;
-      white-space: pre-wrap;
+      white-space: normal;
       font-family: system-ui, -apple-system, sans-serif;
       z-index: 2147483647;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       pointer-events: auto;
       border: 1px solid #e0e0e0;
-      max-height: calc(100vh - 40px);
+      max-height: min(400px, calc(100vh - 80px));
+      overflow-y: auto;
+      overflow-x: hidden;
       top: auto;
       bottom: auto;
+    }
+    .translator-original-display::-webkit-scrollbar {
+      width: 8px;
+    }
+    .translator-original-display::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+    .translator-original-display::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+    .translator-original-display::-webkit-scrollbar-thumb:hover {
+      background: #555;
     }
     .translator-original-display.position-top {
       bottom: 100%;

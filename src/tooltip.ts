@@ -114,7 +114,11 @@ export function addOriginalTooltip(target: TranslationTarget, original: string):
           // コンテンツ部分を作成
           const content = document.createElement("div");
           content.className = "translator-original-content";
-          content.textContent = allOriginals.join(" ");
+          // 各原文をトリムして、空でないものだけを結合（余分な改行や空白を削除）
+          const cleanedOriginals = allOriginals
+            .map(text => text.trim())
+            .filter(text => text.length > 0);
+          content.textContent = cleanedOriginals.join(" ");
           
           originalDisplay.appendChild(header);
           originalDisplay.appendChild(content);
@@ -129,21 +133,24 @@ export function addOriginalTooltip(target: TranslationTarget, original: string):
           originalDisplay.style.visibility = "visible";
           
           // 上側に表示する場合に必要なスペース（マージン4px + ポップアップの高さ）
-          const requiredSpaceAbove = displayHeight + 4;
+          // 最大高さは400pxまたは画面高さ-80pxの小さい方（CSSで設定済み）
+          // ただし、実際に利用可能なスペースがそれより小さい場合は、そのスペースに合わせる
+          const maxAllowedHeight = Math.min(400, window.innerHeight - 80);
+          const requiredSpaceAbove = Math.min(displayHeight, maxAllowedHeight) + 4;
           
           if (spaceAbove < requiredSpaceAbove && spaceBelow > spaceAbove) {
             originalDisplay.classList.add("position-bottom");
             // 下側に表示する場合でも、画面を超えないように最大高さを設定
-            if (spaceBelow < displayHeight + 20) {
-              originalDisplay.style.maxHeight = `${Math.max(spaceBelow - 20, 100)}px`;
-              originalDisplay.style.overflowY = "auto";
+            const availableSpaceBelow = spaceBelow - 20;
+            if (availableSpaceBelow < maxAllowedHeight) {
+              originalDisplay.style.maxHeight = `${Math.max(availableSpaceBelow, 150)}px`;
             }
           } else {
             originalDisplay.classList.add("position-top");
             // 上側に表示する場合、画面を超えないように最大高さを設定
-            if (spaceAbove < requiredSpaceAbove + 20) {
-              originalDisplay.style.maxHeight = `${Math.max(spaceAbove - 24, 100)}px`;
-              originalDisplay.style.overflowY = "auto";
+            const availableSpaceAbove = spaceAbove - 24;
+            if (availableSpaceAbove < maxAllowedHeight) {
+              originalDisplay.style.maxHeight = `${Math.max(availableSpaceAbove, 150)}px`;
             }
           }
         
@@ -312,13 +319,6 @@ export function addOriginalTooltip(target: TranslationTarget, original: string):
           const originalDisplay = document.createElement("div");
           originalDisplay.className = "translator-original-display";
           
-          // 位置を設定（上側に十分なスペースがない場合は下側に表示）
-          if (spaceAbove < 150 && spaceBelow > spaceAbove) {
-            originalDisplay.classList.add("position-bottom");
-          } else {
-            originalDisplay.classList.add("position-top");
-          }
-          
           // ヘッダー部分を作成（「原文:」とピンアイコン）
           const header = document.createElement("div");
           header.className = "translator-original-header";
@@ -349,10 +349,43 @@ export function addOriginalTooltip(target: TranslationTarget, original: string):
           // コンテンツ部分を作成
           const content = document.createElement("div");
           content.className = "translator-original-content";
-          content.textContent = allOriginals.join(" / ");
+          // 各原文をトリムして、空でないものだけを結合（余分な改行や空白を削除）
+          const cleanedOriginals = allOriginals
+            .map(text => text.trim())
+            .filter(text => text.length > 0);
+          content.textContent = cleanedOriginals.join(" / ");
           
           originalDisplay.appendChild(header);
           originalDisplay.appendChild(content);
+          
+          // 位置を設定（上側に十分なスペースがない場合は下側に表示）
+          // 一時的にDOMに追加して高さを測定
+          originalDisplay.style.visibility = "hidden";
+          originalDisplay.style.position = "absolute";
+          element.appendChild(originalDisplay);
+          const displayHeight = originalDisplay.offsetHeight;
+          originalDisplay.remove();
+          originalDisplay.style.visibility = "visible";
+          
+          // 最大高さは400pxまたは画面高さ-80pxの小さい方（CSSで設定済み）
+          const maxAllowedHeight = Math.min(400, window.innerHeight - 80);
+          const requiredSpaceAbove = Math.min(displayHeight, maxAllowedHeight) + 4;
+          
+          if (spaceAbove < requiredSpaceAbove && spaceBelow > spaceAbove) {
+            originalDisplay.classList.add("position-bottom");
+            // 下側に表示する場合でも、画面を超えないように最大高さを設定
+            const availableSpaceBelow = spaceBelow - 20;
+            if (availableSpaceBelow < maxAllowedHeight) {
+              originalDisplay.style.maxHeight = `${Math.max(availableSpaceBelow, 150)}px`;
+            }
+          } else {
+            originalDisplay.classList.add("position-top");
+            // 上側に表示する場合、画面を超えないように最大高さを設定
+            const availableSpaceAbove = spaceAbove - 24;
+            if (availableSpaceAbove < maxAllowedHeight) {
+              originalDisplay.style.maxHeight = `${Math.max(availableSpaceAbove, 150)}px`;
+            }
+          }
           
           // DOMに追加する直前に再度チェック（多重生成を防ぐ）
           const existingBeforeInsert = element.querySelector(".translator-original-display:not(.pinned)");
