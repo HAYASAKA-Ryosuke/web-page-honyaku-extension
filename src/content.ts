@@ -280,44 +280,102 @@ function injectTooltipStyles(): void {
       right: 0;
       background: #ffffff;
       color: #333;
-      padding: 8px 10px;
-      border-left: 3px solid #4a90e2;
-      border-radius: 4px;
-      font-size: 12px;
-      line-height: 1.5;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.6;
       word-wrap: break-word;
       white-space: pre-wrap;
       font-family: system-ui, -apple-system, sans-serif;
       z-index: 2147483647;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       pointer-events: auto;
+      border: 1px solid #e0e0e0;
+      max-height: calc(100vh - 40px);
     }
     .translator-original-display.position-top {
       bottom: 100%;
-      margin-bottom: 4px;
+      margin-bottom: 12px;
+    }
+    .translator-original-display.position-top::after {
+      content: "";
+      position: absolute;
+      bottom: -8px;
+      left: 20px;
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 8px solid #ffffff;
+    }
+    .translator-original-display.position-top::before {
+      content: "";
+      position: absolute;
+      bottom: -9px;
+      left: 20px;
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 8px solid #e0e0e0;
     }
     .translator-original-display.position-bottom {
       top: 100%;
-      margin-top: 4px;
+      margin-top: 12px;
+    }
+    .translator-original-display.position-bottom::after {
+      content: "";
+      position: absolute;
+      top: -8px;
+      left: 20px;
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 8px solid #ffffff;
+    }
+    .translator-original-display.position-bottom::before {
+      content: "";
+      position: absolute;
+      top: -9px;
+      left: 20px;
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 8px solid #e0e0e0;
     }
     .translator-original-header {
       display: flex;
       align-items: center;
-      gap: 6px;
-      margin-bottom: 4px;
+      gap: 8px;
+      margin-bottom: 6px;
       font-weight: bold;
       color: #4a90e2;
-      font-size: 11px;
+      font-size: 12px;
     }
     .translator-original-display.pinned .translator-original-header {
       color: #ff6b6b;
     }
     .translator-original-content {
       color: #333;
+      font-size: 14px;
     }
     .translator-original-display.pinned {
-      border-left-color: #ff6b6b;
       background: #fff5f5;
+      border-color: #ffcccc;
+    }
+    .translator-original-display.pinned.position-top::after {
+      border-top-color: #fff5f5;
+    }
+    .translator-original-display.pinned.position-top::before {
+      border-top-color: #ffcccc;
+    }
+    .translator-original-display.pinned.position-bottom::after {
+      border-bottom-color: #fff5f5;
+    }
+    .translator-original-display.pinned.position-bottom::before {
+      border-bottom-color: #ffcccc;
     }
     .translator-pin-icon {
       display: inline-flex;
@@ -420,19 +478,13 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
             // 要素の位置を取得して、上側か下側かを判定
             const rect = parent.getBoundingClientRect();
             const viewportHeight = window.innerHeight;
-            const spaceAbove = rect.top;
+            const viewportTop = 0;
+            const spaceAbove = rect.top - viewportTop;
             const spaceBelow = viewportHeight - rect.bottom;
             
             // 原文表示要素を作成
             const originalDisplay = document.createElement("div");
             originalDisplay.className = "translator-original-display";
-            
-            // 位置を設定（上側に十分なスペースがない場合は下側に表示）
-            if (spaceAbove < 150 && spaceBelow > spaceAbove) {
-              originalDisplay.classList.add("position-bottom");
-            } else {
-              originalDisplay.classList.add("position-top");
-            }
             
             // ヘッダー部分を作成（「原文:」とピンアイコン）
             const header = document.createElement("div");
@@ -468,6 +520,23 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
             
             originalDisplay.appendChild(header);
             originalDisplay.appendChild(content);
+            
+            // 位置を設定（上側に十分なスペースがない場合は下側に表示）
+            if (spaceAbove < 200 && spaceBelow > spaceAbove) {
+              originalDisplay.classList.add("position-bottom");
+              // 下側に表示する場合でも、画面を超えないように最大高さを設定
+              if (spaceBelow < 300) {
+                originalDisplay.style.maxHeight = `${spaceBelow - 20}px`;
+                originalDisplay.style.overflowY = "auto";
+              }
+            } else {
+              originalDisplay.classList.add("position-top");
+              // 上側に表示する場合、画面を超えないように最大高さを設定
+              if (spaceAbove < 300) {
+                originalDisplay.style.maxHeight = `${Math.max(spaceAbove - 20, 100)}px`;
+                originalDisplay.style.overflowY = "auto";
+              }
+            }
           
           // 原文表示要素の上にマウスがある間は親要素のmouseleaveを無視
           originalDisplay.addEventListener("mouseenter", (e) => {
@@ -478,6 +547,11 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
             e.stopPropagation();
             // 固定されていない場合のみ削除
             if (!originalDisplay.classList.contains("pinned")) {
+              // マウスが親要素に移動した場合は削除しない（マージン部分を通過中）
+              const relatedTarget = e.relatedTarget as Node | null;
+              if (relatedTarget && parent.contains(relatedTarget)) {
+                return;
+              }
               originalDisplay.remove();
             }
           });
@@ -497,8 +571,15 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
         if (originalDisplay && !originalDisplay.classList.contains("pinned")) {
           // マウスが原文表示要素に移動した場合は削除しない
           const relatedTarget = e.relatedTarget as Node | null;
-          if (relatedTarget && originalDisplay.contains(relatedTarget)) {
-            return;
+          if (relatedTarget) {
+            // 原文表示要素またはその子要素に移動した場合
+            if (originalDisplay.contains(relatedTarget)) {
+              return;
+            }
+            // 親要素内の他の要素に移動した場合（マージン部分を通過中など）
+            if (parent.contains(relatedTarget)) {
+              return;
+            }
           }
           originalDisplay.remove();
         }
@@ -612,6 +693,11 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
             e.stopPropagation();
             // 固定されていない場合のみ削除
             if (!originalDisplay.classList.contains("pinned")) {
+              // マウスが親要素に移動した場合は削除しない（マージン部分を通過中）
+              const relatedTarget = e.relatedTarget as Node | null;
+              if (relatedTarget && element.contains(relatedTarget)) {
+                return;
+              }
               originalDisplay.remove();
             }
           });
@@ -631,8 +717,15 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
         if (originalDisplay && !originalDisplay.classList.contains("pinned")) {
           // マウスが原文表示要素に移動した場合は削除しない
           const relatedTarget = e.relatedTarget as Node | null;
-          if (relatedTarget && originalDisplay.contains(relatedTarget)) {
-            return;
+          if (relatedTarget) {
+            // 原文表示要素またはその子要素に移動した場合
+            if (originalDisplay.contains(relatedTarget)) {
+              return;
+            }
+            // 親要素内の他の要素に移動した場合（マージン部分を通過中など）
+            if (element.contains(relatedTarget)) {
+              return;
+            }
           }
           originalDisplay.remove();
         }
