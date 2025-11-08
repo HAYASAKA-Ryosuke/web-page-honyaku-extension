@@ -140,7 +140,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           targetLang: msg.targetLang,
         });
 
-        const result = await chrome.storage.sync.get(["claudeApiKey", "claudeModel"]);
+        const result = await chrome.storage.local.get(["claudeApiKey", "claudeModel"]);
         const apiKey = result.claudeApiKey as string | undefined;
         const model = (result.claudeModel as string) || "claude-haiku-4-5-20251001";
 

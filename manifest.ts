@@ -16,12 +16,12 @@ export default defineManifest({
   },
   content_scripts: [
     {
-      matches: ["https://*/*", "http://*/*"],
+      matches: ["https://*/*"],
       js: ["src/content.ts"],
       run_at: "document_idle"
     }
   ],
-  permissions: ["storage", "contextMenus", "activeTab", "alarms"],
-  host_permissions: ["https://*/*", "http://*/*"]
+  permissions: ["storage", "contextMenus", "activeTab"],
+  host_permissions: ["https://api.anthropic.com/*"]
 });
 

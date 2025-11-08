@@ -10,7 +10,7 @@ const out = document.getElementById("out") as HTMLElement;
 // 設定を読み込んで表示
 async function loadConfig() {
   try {
-    const result = await chrome.storage.sync.get(["claudeApiKey", "claudeModel"]);
+    const result = await chrome.storage.local.get(["claudeApiKey", "claudeModel"]);
     if (result.claudeApiKey) {
       apiKeyInput.value = result.claudeApiKey as string;
     }
@@ -33,7 +33,7 @@ saveConfigBtn.addEventListener("click", async () => {
       return;
     }
 
-    await chrome.storage.sync.set({
+    await chrome.storage.local.set({
       claudeApiKey: apiKey,
       claudeModel: model,
     });
