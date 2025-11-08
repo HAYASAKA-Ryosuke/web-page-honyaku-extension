@@ -26,9 +26,14 @@ async function callClaudeAPI(
 - 段落ごとに一つの中心的な主張・感情が伝わるようにする
 - 英語的な語順を避け、日本人が自然に読める順序に並べ替える
 
+重要:
+- フィンガープリント、ハッシュ値、UUID、ID、コード、URL、メールアドレス、数値のみのテキストなど、翻訳すべきではないテキストの場合は、元のテキストをそのまま返してください
+- 翻訳すべきかどうか判断に迷う場合は、元のテキストをそのまま返してください
+
 形式:
 - 元の番号を保持して、番号付きリストで返す
 - 翻訳結果のみを返す（説明不要）
+- 翻訳すべきではないテキストは元のテキストをそのまま返す
 
 テキスト:
 ${combinedText}
@@ -81,9 +86,16 @@ ${combinedText}
     .filter((line: string) => line.length > 0);
 
   // 番号を除去して翻訳テキストを抽出
-  const translations = lines.map((line: string) => {
+  const translations = lines.map((line: string, index: number) => {
     // "1. " や "1)" などの番号プレフィックスを除去
-    return line.replace(/^\d+[\.\)]\s*/, "").trim();
+    const translation = line.replace(/^\d+[\.\)]\s*/, "").trim();
+    
+    // 翻訳結果が空の場合は元のテキストを返す
+    if (!translation || translation.length === 0) {
+      return texts[index] || "";
+    }
+    
+    return translation;
   });
 
   // テキスト数が一致しない場合の処理
@@ -92,15 +104,38 @@ ${combinedText}
       `翻訳結果の数が一致しません。期待: ${texts.length}, 実際: ${translations.length}`
     );
     if (translations.length === 1) {
-      return Array(texts.length).fill(translatedText.trim());
+      // 1つの結果しかない場合は、各テキストに対して元のテキストを返すか、翻訳結果を使用
+      return texts.map((original, index) => {
+        if (index === 0 && translations[0]) {
+          return translations[0];
+        }
+        return original; // 元のテキストを返す
+      });
     }
+    // 不足分は元のテキストで埋める
     while (translations.length < texts.length) {
-      translations.push(translations[translations.length - 1] || "");
+      const originalIndex = translations.length;
+      translations.push(texts[originalIndex] || "");
     }
     return translations.slice(0, texts.length);
   }
 
-  return translations;
+  // 各翻訳結果を元のテキストと比較し、翻訳すべきではない場合は元のテキストを返す
+  return translations.map((translation: string, index: number) => {
+    const original = texts[index];
+    
+    // 翻訳結果が元のテキストと完全に同じ場合は、元のテキストを返す（翻訳されていない）
+    if (translation === original) {
+      return original;
+    }
+    
+    // 翻訳結果が空または非常に短い場合は、元のテキストを返す
+    if (!translation || translation.trim().length < original.trim().length * 0.3) {
+      return original;
+    }
+    
+    return translation;
+  });
 }
 
 // ポップアップ → バックグラウンド間メッセージ
