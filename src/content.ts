@@ -40,14 +40,10 @@ let config: TranslatorConfig = {
 // 注意: APIキーはコンテンツスクリプトでは読み込まない（セキュリティのため）
 // APIキーはバックグラウンドスクリプトでのみ使用される
 async function initializeConfig() {
-  try {
-    // バックグラウンドスクリプト経由でAPIを呼び出すプロバイダーを使用
-    // APIキーの有無はバックグラウンドスクリプト側でチェックされる
-    config.provider = createClaudeProvider();
-    console.log("[Translator] Claude APIプロバイダーを初期化しました（バックグラウンド経由）");
-  } catch (error) {
-    console.error("[Translator] 設定の読み込みエラー:", error);
-  }
+  // バックグラウンドスクリプト経由でAPIを呼び出すプロバイダーを使用
+  // APIキーの有無はバックグラウンドスクリプト側でチェックされる
+  config.provider = createClaudeProvider();
+  console.log("[Translator] Claude APIプロバイダーを初期化しました（バックグラウンド経由）");
 }
 
 // 初期化を実行
@@ -55,8 +51,21 @@ initializeConfig();
 
 const translationState = new Map<string, TranslationState>();
 const nodeIdMap = new WeakMap<Node | HTMLElement, string>();
+
+// 原文表示の設定（デフォルトはtrue）
+let showOriginal = true;
+
+// 原文表示の設定を読み込む
+async function loadShowOriginalSetting(): Promise<void> {
+  const result = await chrome.storage.local.get(["showOriginal"]);
+  showOriginal = result.showOriginal !== false; // デフォルトはtrue
+}
+
+// 初期化時に設定を読み込む
+loadShowOriginalSetting();
 let currentLang: string | null = null;
 let observer: MutationObserver | null = null;
+let isTranslating = false; // 翻訳処理中フラグ
 
 // ====== ユーティリティ関数 ======
 
@@ -68,7 +77,7 @@ function isVisibleTextNode(node: Node): boolean {
     return false;
   }
 
-  const text = node.nodeValue?.trim();
+    const text = node.nodeValue?.trim();
   if (!text || text.length < config.minTextLen) {
     return false;
   }
@@ -89,6 +98,11 @@ function isVisibleTextNode(node: Node): boolean {
     return false;
   }
 
+  // 原文表示ポップアップを除外
+  if (parent.closest(".translator-original-display")) {
+    return false;
+  }
+
   // 画面外の要素を除外（fixedは例外）
   if (!parent.offsetParent && style.position !== "fixed") {
     return false;
@@ -101,8 +115,8 @@ function isVisibleTextNode(node: Node): boolean {
     return false;
   }
 
-  return true;
-}
+    return true;
+  }
 
 /**
  * ノードの一意IDを取得（なければ生成）
@@ -136,7 +150,7 @@ function collectTargets(root: HTMLElement = document.body): TranslationTarget[] 
   const targets: TranslationTarget[] = [];
 
   // テキストノードを収集
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
       return isVisibleTextNode(node)
         ? NodeFilter.FILTER_ACCEPT
@@ -144,8 +158,8 @@ function collectTargets(root: HTMLElement = document.body): TranslationTarget[] 
     },
   });
 
-  while (walker.nextNode()) {
-    const node = walker.currentNode;
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
     const text = node.nodeValue;
 
     // 句読点のみのテキストは除外
@@ -169,18 +183,24 @@ function collectTargets(root: HTMLElement = document.body): TranslationTarget[] 
 
   for (const element of Array.from(elements)) {
     const htmlElement = element as HTMLElement;
+    
+    // 原文表示ポップアップ内の要素は除外
+    if (htmlElement.closest(".translator-original-display")) {
+      continue;
+    }
+    
     for (const key of config.attrKeys) {
       const value = htmlElement.getAttribute(key);
       if (value && value.trim().length >= config.minTextLen) {
         targets.push({
-          type: "attr",
+            type: "attr",
           node: htmlElement,
-          key,
+            key,
           get: () => htmlElement.getAttribute(key) || "",
           set: (value: string) => htmlElement.setAttribute(key, value),
-        });
+          });
+        }
       }
-    }
   }
 
   return targets;
@@ -339,19 +359,33 @@ async function translateTargetsInBatches(
   targets: TranslationTarget[],
   targetLang: string
 ): Promise<void> {
-  // バッチに分割
-  const batches: TranslationTarget[][] = [];
-  for (let i = 0; i < targets.length; i += config.maxBatch) {
-    batches.push(targets.slice(i, i + config.maxBatch));
+  // 既に翻訳中の場合はスキップ
+  if (isTranslating) {
+    return;
   }
-
-  // 翻訳中マーカーを追加
-  markTargetsAsTranslating(targets);
   
-  // 翻訳中インジケーターを表示
-  showLoadingIndicator(batches.length, 0);
-
+  isTranslating = true;
+  
+  // 翻訳処理中はObserverを一時停止
+  const wasObserving = observer !== null;
+  if (wasObserving) {
+    disconnectObserver();
+  }
+  
   try {
+    // バッチに分割
+    const batches: TranslationTarget[][] = [];
+    for (let i = 0; i < targets.length; i += config.maxBatch) {
+      batches.push(targets.slice(i, i + config.maxBatch));
+    }
+
+    // 翻訳中マーカーを追加
+    markTargetsAsTranslating(targets);
+    
+    // 翻訳中インジケーターを表示
+    showLoadingIndicator(batches.length, 0);
+
+    try {
     // 各バッチを翻訳
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
@@ -416,11 +450,20 @@ async function translateTargetsInBatches(
         // エラーが発生しても次のバッチを続行
       }
     }
+    } finally {
+      // 翻訳中マーカーを削除
+      unmarkTargetsAsTranslating(targets);
+      // 翻訳中インジケーターを非表示
+      hideLoadingIndicator();
+    }
   } finally {
-    // 翻訳中マーカーを削除
-    unmarkTargetsAsTranslating(targets);
-    // 翻訳中インジケーターを非表示
-    hideLoadingIndicator();
+    // 翻訳処理完了
+    isTranslating = false;
+    
+    // Observerを再開（元々動いていた場合）
+    if (wasObserving && config.observe) {
+      startObserver();
+    }
   }
 }
 
@@ -676,6 +719,11 @@ function getAllOriginalTexts(element: HTMLElement): string[] {
  * マウスオーバー時に原文を要素の上に表示
  */
 function addOriginalTooltip(target: TranslationTarget, original: string): void {
+  // 原文表示がOFFの場合は何もしない
+  if (!showOriginal) {
+    return;
+  }
+  
   // スタイルを注入
   injectTooltipStyles();
 
@@ -1148,25 +1196,43 @@ function restoreOriginal(): void {
  */
 function startObserver(): void {
   observer = new MutationObserver(async (mutations: MutationRecord[]) => {
+    // 翻訳処理中は何もしない
+    if (isTranslating) {
+      return;
+    }
+    
     const newTargets: TranslationTarget[] = [];
 
     for (const mutation of mutations) {
       if (mutation.type === "childList") {
         // 追加されたノードを処理
         for (const node of Array.from(mutation.addedNodes)) {
+          // 原文表示ポップアップ内のノードは除外
           if (node.nodeType === Node.ELEMENT_NODE) {
-            newTargets.push(...collectTargets(node as HTMLElement));
-          } else if (node.nodeType === Node.TEXT_NODE && isVisibleTextNode(node)) {
-            const text = node.nodeValue;
-            if (text && /[^\s\u3000.,;:!?、。]/.test(text)) {
-              newTargets.push({
-                type: "text",
-                node,
-                get: () => node.nodeValue || "",
-                set: (value: string) => {
-                  node.nodeValue = value;
-                },
-              });
+            const element = node as HTMLElement;
+            if (element.closest(".translator-original-display") || element.classList.contains("translator-original-display")) {
+              continue;
+            }
+            newTargets.push(...collectTargets(element));
+          } else if (node.nodeType === Node.TEXT_NODE) {
+            // 原文表示ポップアップ内のテキストノードは除外
+            const parent = node.parentElement;
+            if (parent && (parent.closest(".translator-original-display") || parent.classList.contains("translator-original-display"))) {
+              continue;
+            }
+            
+            if (isVisibleTextNode(node)) {
+              const text = node.nodeValue;
+              if (text && /[^\s\u3000.,;:!?、。]/.test(text)) {
+                newTargets.push({
+                  type: "text",
+                  node,
+                  get: () => node.nodeValue || "",
+                  set: (value: string) => {
+                    node.nodeValue = value;
+                  },
+                });
+              }
             }
           }
         }
@@ -1177,6 +1243,12 @@ function startObserver(): void {
       ) {
         // 属性変更を処理
         const element = mutation.target as HTMLElement;
+        
+        // 原文表示ポップアップ内の要素は除外
+        if (element.closest(".translator-original-display") || element.classList.contains("translator-original-display")) {
+          continue;
+        }
+        
         const value = element.getAttribute(mutation.attributeName!);
         if (value && value.trim().length >= config.minTextLen) {
           newTargets.push({
@@ -1207,10 +1279,10 @@ function startObserver(): void {
   });
 
   observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    characterData: false,
-    attributes: true,
+      childList: true,
+      subtree: true,
+      characterData: false,
+      attributes: true,
     attributeFilter: config.attrKeys,
   });
 }
@@ -1237,7 +1309,7 @@ function locateTargetByKey(key: string): TranslationTarget | null {
   }
 
   const type = parts[0];
-  const isAttr = type === "attr";
+    const isAttr = type === "attr";
 
   if (isAttr && parts.length < 3) {
     return null;
@@ -1261,7 +1333,7 @@ function locateTargetByKey(key: string): TranslationTarget | null {
           get: () => htmlElement.getAttribute(attrKey) || "",
           set: (value: string) => htmlElement.setAttribute(attrKey, value),
         };
-      } else {
+        } else {
         // テキストノードを探す
         for (const child of Array.from(htmlElement.childNodes)) {
           if (child.nodeType === Node.TEXT_NODE) {
@@ -1460,6 +1532,7 @@ chrome.runtime.onMessage.addListener(
 
     if (msg.type === "RELOAD_CONFIG") {
       // 設定を再読み込み
+      loadShowOriginalSetting();
       initializeConfig()
         .then(() => {
           sendResponse({ success: true, message: "設定を再読み込みしました" });
