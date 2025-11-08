@@ -1,5 +1,4 @@
 // ====== 型定義 ======
-
 interface TranslationProvider {
   translate(texts: string[], targetLang: string): Promise<string[]>;
 }
@@ -26,7 +25,6 @@ interface TranslatorConfig {
 }
 
 // ====== モジュールスコープの状態 ======
-
 // デフォルト設定（後でAPIキーを読み込んで更新）
 let config: TranslatorConfig = {
   provider: createDummyProvider(),
@@ -51,6 +49,9 @@ initializeConfig();
 
 const translationState = new Map<string, TranslationState>();
 const nodeIdMap = new WeakMap<Node | HTMLElement, string>();
+
+// イベントリスナーの管理用（AbortController）
+const tooltipControllers = new WeakMap<HTMLElement, AbortController>();
 
 // 原文表示の設定（デフォルトはtrue）
 let showOriginal = true;
@@ -743,6 +744,10 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
       parent.setAttribute("data-translated", "true");
       parent.setAttribute("data-tooltip-handler-added", "true");
       
+      // AbortControllerを作成してイベントリスナーを管理
+      const controller = new AbortController();
+      tooltipControllers.set(parent, controller);
+      
       // マウスオーバー時に原文を表示
       parent.addEventListener("mouseenter", () => {
         // 既に固定表示されている場合は何もしない
@@ -834,10 +839,17 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
               }
             }
           
-          // 原文表示要素の上にマウスがある間は親要素のmouseleaveを無視
+          // 親要素の最初の子として挿入
+          if (parent.firstChild) {
+            parent.insertBefore(originalDisplay, parent.firstChild);
+          } else {
+            parent.appendChild(originalDisplay);
+          }
+          
+          // originalDisplay内のイベントリスナーもAbortControllerで管理
           originalDisplay.addEventListener("mouseenter", (e) => {
             e.stopPropagation();
-          });
+          }, { signal: controller.signal });
           
           originalDisplay.addEventListener("mouseleave", (e) => {
             e.stopPropagation();
@@ -878,18 +890,11 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
                 clearTimeout(timeoutId);
                 originalDisplay.removeEventListener("mouseenter", cancelTimeout);
               };
-              originalDisplay.addEventListener("mouseenter", cancelTimeout);
+              originalDisplay.addEventListener("mouseenter", cancelTimeout, { signal: controller.signal });
             }
-          });
-          
-          // 親要素の最初の子として挿入
-          if (parent.firstChild) {
-            parent.insertBefore(originalDisplay, parent.firstChild);
-          } else {
-            parent.appendChild(originalDisplay);
-          }
+          }, { signal: controller.signal });
         }
-      });
+      }, { signal: controller.signal });
       
       // マウスアウト時に原文表示を削除（固定されていない場合のみ、かつ原文表示要素の上にマウスがない場合）
       parent.addEventListener("mouseleave", (e) => {
@@ -937,7 +942,7 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
           parent.addEventListener("mouseenter", cancelTimeout);
           originalDisplay.addEventListener("mouseenter", cancelTimeout);
         }
-      });
+      }, { signal: controller.signal });
     }
   } else if (target.type === "attr" && target.node instanceof HTMLElement) {
     // 属性の場合は、要素に設定
@@ -962,6 +967,10 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
     // マウスオーバー時に原文を表示（既に追加されていない場合のみ）
     if (!element.hasAttribute("data-tooltip-handler-added")) {
       element.setAttribute("data-tooltip-handler-added", "true");
+      
+      // AbortControllerを作成してイベントリスナーを管理
+      const controller = new AbortController();
+      tooltipControllers.set(element, controller);
       
       element.addEventListener("mouseenter", () => {
         // 既に固定表示されている場合は何もしない
@@ -1038,10 +1047,17 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
           originalDisplay.appendChild(header);
           originalDisplay.appendChild(content);
           
-          // 原文表示要素の上にマウスがある間は親要素のmouseleaveを無視
+          // 要素の最初の子として挿入
+          if (element.firstChild) {
+            element.insertBefore(originalDisplay, element.firstChild);
+          } else {
+            element.appendChild(originalDisplay);
+          }
+          
+          // originalDisplay内のイベントリスナーもAbortControllerで管理
           originalDisplay.addEventListener("mouseenter", (e) => {
             e.stopPropagation();
-          });
+          }, { signal: controller.signal });
           
           originalDisplay.addEventListener("mouseleave", (e) => {
             e.stopPropagation();
@@ -1054,16 +1070,9 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
               }
               originalDisplay.remove();
             }
-          });
-          
-          // 要素の最初の子として挿入
-          if (element.firstChild) {
-            element.insertBefore(originalDisplay, element.firstChild);
-          } else {
-            element.appendChild(originalDisplay);
-          }
+          }, { signal: controller.signal });
         }
-      });
+      }, { signal: controller.signal });
       
       // マウスアウト時に原文表示を削除（固定されていない場合のみ、かつ原文表示要素の上にマウスがない場合）
       element.addEventListener("mouseleave", (e) => {
@@ -1083,7 +1092,7 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
           }
           originalDisplay.remove();
         }
-      });
+      }, { signal: controller.signal });
     }
   }
 }
@@ -1603,7 +1612,56 @@ chrome.runtime.onMessage.addListener(
 
     if (msg.type === "RELOAD_CONFIG") {
       // 設定を再読み込み
-      loadShowOriginalSetting();
+      loadShowOriginalSetting().then(() => {
+        // 原文表示がOFFになった場合、既存のツールチップを削除
+        if (!showOriginal) {
+          const existingDisplays = document.querySelectorAll(".translator-original-display");
+          existingDisplays.forEach((display) => display.remove());
+          
+          // すべてのイベントリスナーを削除（AbortControllerで管理）
+          const elementsWithTooltip = document.querySelectorAll("[data-tooltip-handler-added]");
+          elementsWithTooltip.forEach((element) => {
+            const controller = tooltipControllers.get(element as HTMLElement);
+            if (controller) {
+              controller.abort();
+              tooltipControllers.delete(element as HTMLElement);
+            }
+            element.removeAttribute("data-tooltip-handler-added");
+          });
+        } else {
+          // 原文表示がONになった場合、既存の翻訳済み要素に対してツールチップを再追加
+          for (const [key, state] of translationState.entries()) {
+            if (state.current !== state.original) {
+              const target = locateTargetByKey(key);
+              if (target) {
+                // 既存のツールチップハンドラーを削除（再追加のため）
+                if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
+                  const parent = target.node.parentElement;
+                  if (parent) {
+                    const controller = tooltipControllers.get(parent);
+                    if (controller) {
+                      controller.abort();
+                      tooltipControllers.delete(parent);
+                    }
+                    parent.removeAttribute("data-tooltip-handler-added");
+                  }
+                } else if (target.type === "attr" && target.node instanceof HTMLElement) {
+                  const element = target.node;
+                  const controller = tooltipControllers.get(element);
+                  if (controller) {
+                    controller.abort();
+                    tooltipControllers.delete(element);
+                  }
+                  element.removeAttribute("data-tooltip-handler-added");
+                }
+                // ツールチップを再追加
+                addOriginalTooltip(target, state.original);
+              }
+            }
+          }
+        }
+      });
+      
       initializeConfig()
         .then(() => {
           sendResponse({ success: true, message: "設定を再読み込みしました" });
