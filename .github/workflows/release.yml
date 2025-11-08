@@ -38,14 +38,26 @@ jobs:
       - name: Get version from tag
         id: get_version
         run: |
+          echo "GitHub ref: ${{ github.ref }}"
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
             echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "tag=$VERSION" >> $GITHUB_OUTPUT
+            echo "✅ タグからバージョンを取得: $VERSION"
           else
             echo "version=dev" >> $GITHUB_OUTPUT
             echo "tag=dev" >> $GITHUB_OUTPUT
+            echo "⚠️ タグが見つかりません。devとして処理します。"
           fi
+
+      - name: Check ZIP file exists
+        run: |
+          if [ ! -f "extension.zip" ]; then
+            echo "❌ extension.zipが見つかりません"
+            exit 1
+          fi
+          ls -lh extension.zip
+          echo "✅ ZIPファイルが存在します"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -73,6 +85,7 @@ jobs:
             **自動生成されたリリースです**
           draft: false
           prerelease: ${{ contains(steps.get_version.outputs.version, '-') || contains(steps.get_version.outputs.version, 'alpha') || contains(steps.get_version.outputs.version, 'beta') || contains(steps.get_version.outputs.version, 'rc') }}
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
