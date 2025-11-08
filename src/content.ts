@@ -751,13 +751,13 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
       // マウスオーバー時に原文を表示
       parent.addEventListener("mouseenter", () => {
         // 既に固定表示されている場合は何もしない
-        const existing = parent.querySelector(".translator-original-display.pinned");
-        if (existing) {
+        const existingPinned = parent.querySelector(".translator-original-display.pinned");
+        if (existingPinned) {
           return;
         }
         
-        // 既存の原文表示要素があれば削除
-        const existingNonPinned = parent.querySelector(".translator-original-display");
+        // 既存の非固定の原文表示要素があれば削除（固定されたものは除外）
+        const existingNonPinned = parent.querySelector(".translator-original-display:not(.pinned)");
         if (existingNonPinned) {
           existingNonPinned.remove();
         }
@@ -898,8 +898,8 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
       
       // マウスアウト時に原文表示を削除（固定されていない場合のみ、かつ原文表示要素の上にマウスがない場合）
       parent.addEventListener("mouseleave", (e) => {
-        const originalDisplay = parent.querySelector(".translator-original-display");
-        if (originalDisplay && !originalDisplay.classList.contains("pinned")) {
+        const originalDisplay = parent.querySelector(".translator-original-display:not(.pinned)");
+        if (originalDisplay) {
           // マウスが原文表示要素に移動した場合は削除しない
           const relatedTarget = e.relatedTarget as Node | null;
           if (relatedTarget) {
@@ -974,13 +974,13 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
       
       element.addEventListener("mouseenter", () => {
         // 既に固定表示されている場合は何もしない
-        const existing = element.querySelector(".translator-original-display.pinned");
-        if (existing) {
+        const existingPinned = element.querySelector(".translator-original-display.pinned");
+        if (existingPinned) {
           return;
         }
         
-        // 既存の原文表示要素があれば削除
-        const existingNonPinned = element.querySelector(".translator-original-display");
+        // 既存の非固定の原文表示要素があれば削除（固定されたものは除外）
+        const existingNonPinned = element.querySelector(".translator-original-display:not(.pinned)");
         if (existingNonPinned) {
           existingNonPinned.remove();
         }
@@ -1076,8 +1076,8 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
       
       // マウスアウト時に原文表示を削除（固定されていない場合のみ、かつ原文表示要素の上にマウスがない場合）
       element.addEventListener("mouseleave", (e) => {
-        const originalDisplay = element.querySelector(".translator-original-display");
-        if (originalDisplay && !originalDisplay.classList.contains("pinned")) {
+        const originalDisplay = element.querySelector(".translator-original-display:not(.pinned)");
+        if (originalDisplay) {
           // マウスが原文表示要素に移動した場合は削除しない
           const relatedTarget = e.relatedTarget as Node | null;
           if (relatedTarget) {
