@@ -13,6 +13,10 @@
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=10.0.0"
+  },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.2.1",
     "chrome-types": "^0.1.384",
