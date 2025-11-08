@@ -570,10 +570,12 @@ function injectTooltipStyles(): void {
       pointer-events: auto;
       border: 1px solid #e0e0e0;
       max-height: calc(100vh - 40px);
+      top: auto;
+      bottom: auto;
     }
     .translator-original-display.position-top {
       bottom: 100%;
-      margin-bottom: 12px;
+      margin-bottom: 4px;
     }
     .translator-original-display.position-top::after {
       content: "";
@@ -599,7 +601,7 @@ function injectTooltipStyles(): void {
     }
     .translator-original-display.position-bottom {
       top: 100%;
-      margin-top: 12px;
+      margin-top: 4px;
     }
     .translator-original-display.position-bottom::after {
       content: "";
@@ -805,18 +807,29 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
             originalDisplay.appendChild(content);
             
             // 位置を設定（上側に十分なスペースがない場合は下側に表示）
-            if (spaceAbove < 200 && spaceBelow > spaceAbove) {
+            // 一時的にDOMに追加して高さを測定
+            originalDisplay.style.visibility = "hidden";
+            originalDisplay.style.position = "absolute";
+            parent.appendChild(originalDisplay);
+            const displayHeight = originalDisplay.offsetHeight;
+            originalDisplay.remove();
+            originalDisplay.style.visibility = "visible";
+            
+            // 上側に表示する場合に必要なスペース（マージン4px + ポップアップの高さ）
+            const requiredSpaceAbove = displayHeight + 4;
+            
+            if (spaceAbove < requiredSpaceAbove && spaceBelow > spaceAbove) {
               originalDisplay.classList.add("position-bottom");
               // 下側に表示する場合でも、画面を超えないように最大高さを設定
-              if (spaceBelow < 300) {
-                originalDisplay.style.maxHeight = `${spaceBelow - 20}px`;
+              if (spaceBelow < displayHeight + 20) {
+                originalDisplay.style.maxHeight = `${Math.max(spaceBelow - 20, 100)}px`;
                 originalDisplay.style.overflowY = "auto";
               }
             } else {
               originalDisplay.classList.add("position-top");
               // 上側に表示する場合、画面を超えないように最大高さを設定
-              if (spaceAbove < 300) {
-                originalDisplay.style.maxHeight = `${Math.max(spaceAbove - 20, 100)}px`;
+              if (spaceAbove < requiredSpaceAbove + 20) {
+                originalDisplay.style.maxHeight = `${Math.max(spaceAbove - 24, 100)}px`;
                 originalDisplay.style.overflowY = "auto";
               }
             }
@@ -830,12 +843,42 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
             e.stopPropagation();
             // 固定されていない場合のみ削除
             if (!originalDisplay.classList.contains("pinned")) {
-              // マウスが親要素に移動した場合は削除しない（マージン部分を通過中）
+              // マウスが親要素またはその子要素に移動した場合は削除しない
               const relatedTarget = e.relatedTarget as Node | null;
-              if (relatedTarget && parent.contains(relatedTarget)) {
-                return;
+              if (relatedTarget) {
+                // 親要素内の他の要素に移動した場合（マージン部分を通過中など）
+                if (parent.contains(relatedTarget)) {
+                  return;
+                }
+                // 原文表示要素内の他の要素に移動した場合
+                if (originalDisplay.contains(relatedTarget)) {
+                  return;
+                }
               }
-              originalDisplay.remove();
+              // 少し待ってから削除（マージン部分を通過する時間を考慮）
+              const timeoutId = setTimeout(() => {
+                if (originalDisplay && !originalDisplay.classList.contains("pinned")) {
+                  // 現在のマウス位置を取得
+                  const mouseElement = document.elementFromPoint(
+                    (e as MouseEvent).clientX,
+                    (e as MouseEvent).clientY
+                  );
+                  
+                  // マウスが親要素または原文表示要素内にある場合は削除しない
+                  if (mouseElement && (parent.contains(mouseElement) || originalDisplay.contains(mouseElement))) {
+                    return;
+                  }
+                  
+                  originalDisplay.remove();
+                }
+              }, 150);
+              
+              // マウスが戻ってきた場合はタイマーをキャンセル
+              const cancelTimeout = () => {
+                clearTimeout(timeoutId);
+                originalDisplay.removeEventListener("mouseenter", cancelTimeout);
+              };
+              originalDisplay.addEventListener("mouseenter", cancelTimeout);
             }
           });
           
@@ -864,7 +907,35 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
               return;
             }
           }
-          originalDisplay.remove();
+          // 少し待ってから削除（マージン部分を通過する時間を考慮）
+          const timeoutId = setTimeout(() => {
+            if (originalDisplay && !originalDisplay.classList.contains("pinned")) {
+              // 現在のマウス位置を取得
+              const mouseEvent = e as MouseEvent;
+              const mouseElement = document.elementFromPoint(
+                mouseEvent.clientX,
+                mouseEvent.clientY
+              );
+              
+              // マウスが親要素または原文表示要素内にある場合は削除しない
+              if (mouseElement && (parent.contains(mouseElement) || originalDisplay.contains(mouseElement))) {
+                return;
+              }
+              
+              originalDisplay.remove();
+            }
+          }, 150);
+          
+          // マウスが戻ってきた場合はタイマーをキャンセル
+          const cancelTimeout = () => {
+            clearTimeout(timeoutId);
+            parent.removeEventListener("mouseenter", cancelTimeout);
+            if (originalDisplay) {
+              originalDisplay.removeEventListener("mouseenter", cancelTimeout);
+            }
+          };
+          parent.addEventListener("mouseenter", cancelTimeout);
+          originalDisplay.addEventListener("mouseenter", cancelTimeout);
         }
       });
     }
@@ -1208,7 +1279,7 @@ function startObserver(): void {
         // 追加されたノードを処理
         for (const node of Array.from(mutation.addedNodes)) {
           // 原文表示ポップアップ内のノードは除外
-          if (node.nodeType === Node.ELEMENT_NODE) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
             const element = node as HTMLElement;
             if (element.closest(".translator-original-display") || element.classList.contains("translator-original-display")) {
               continue;
