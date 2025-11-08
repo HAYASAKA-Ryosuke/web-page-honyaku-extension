@@ -9,27 +9,12 @@ async function callClaudeAPI(
   apiKey: string,
   model: string
 ): Promise<string[]> {
-  // 言語コードを日本語名に変換
-  const langMap: Record<string, string> = {
-    ja: "日本語",
-    en: "英語",
-    zh: "中国語",
-    ko: "韓国語",
-    es: "スペイン語",
-    fr: "フランス語",
-    de: "ドイツ語",
-    pt: "ポルトガル語",
-    ru: "ロシア語",
-    it: "イタリア語",
-  };
-  const targetLangName = langMap[targetLang] || targetLang;
-
   // テキストを結合して1つのプロンプトにする
   const combinedText = texts
     .map((text, index) => `${index + 1}. ${text}`)
     .join("\n");
 
-const prompt = `以下の英語テキストを自然な日本語に翻訳してください。
+  const prompt = `以下の英語テキストを自然な日本語に翻訳してください。
 
 条件:
 - 直訳ではなく、自然な日本語として意味の流れを再構成すること

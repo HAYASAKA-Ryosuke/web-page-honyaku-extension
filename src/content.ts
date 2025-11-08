@@ -278,26 +278,24 @@ function showErrorMessage(message: string, details?: string): void {
     indicator.appendChild(detailEl);
   }
   
-  // 5秒後に自動的に非表示（ユーザーがクリックしても閉じられるように）
+  // 3秒後に自動的に非表示
   setTimeout(() => {
     if (indicator && indicator.parentNode) {
       indicator.remove();
     }
-  }, 5000);
-  
-  // クリックで閉じられるように
-  indicator.style.cursor = "pointer";
-  indicator.addEventListener("click", () => {
-    indicator.remove();
-  });
+  }, 3000);
 }
 
 /**
  * 翻訳中インジケーターを非表示
+ * エラー表示の場合は削除しない
  */
 function hideLoadingIndicator(): void {
   const indicator = document.getElementById("translator-loading-indicator");
   if (indicator) {
+    if (indicator.classList.contains("error")) {
+      return;
+    }
     indicator.remove();
   }
 }
