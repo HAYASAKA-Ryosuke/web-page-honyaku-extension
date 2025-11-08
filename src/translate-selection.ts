@@ -1,6 +1,6 @@
 // ====== 選択テキストの翻訳 ======
 import type { TranslationTarget } from "./types";
-import { config, translationState, currentLang } from "./state";
+import { state } from "./state";
 import { isVisibleTextNode, getTargetKey } from "./utils";
 import { saveOriginalTexts } from "./target-collector";
 import { translateTargetsInBatches } from "./translation";
@@ -20,7 +20,7 @@ export async function translateSelection(targetLang: string = "ja"): Promise<voi
   const range = selection.getRangeAt(0);
   const selectedText = range.toString().trim();
 
-  if (!selectedText || selectedText.length < config.minTextLen) {
+  if (!selectedText || selectedText.length < state.config.minTextLen) {
     showErrorMessage("テキストが短すぎます", "もう少し長いテキストを選択してください");
     return;
   }
@@ -81,9 +81,9 @@ export async function translateSelection(targetLang: string = "ja"): Promise<voi
   // ツールチップを追加
   for (const target of targets) {
     const key = getTargetKey(target);
-    const state = translationState.get(key);
-    if (state && state.current !== state.original) {
-      addOriginalTooltip(target, state.original);
+    const translationState = state.translationState.get(key);
+    if (translationState && translationState.current !== translationState.original) {
+      addOriginalTooltip(target, translationState.original);
     }
   }
 }

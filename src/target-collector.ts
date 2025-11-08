@@ -1,6 +1,6 @@
 // ====== 翻訳対象の収集 ======
 import type { TranslationTarget } from "./types";
-import { config, translationState } from "./state";
+import { state } from "./state";
 import { isVisibleTextNode, getTargetKey } from "./utils";
 
 /**
@@ -38,7 +38,7 @@ export function collectTargets(root: HTMLElement = document.body): TranslationTa
   }
 
   // 属性を収集
-  const selector = config.attrKeys.map((key) => `[${key}]`).join(",");
+  const selector = state.config.attrKeys.map((key) => `[${key}]`).join(",");
   const elements = root.querySelectorAll(selector);
 
   for (const element of Array.from(elements)) {
@@ -49,9 +49,9 @@ export function collectTargets(root: HTMLElement = document.body): TranslationTa
       continue;
     }
     
-    for (const key of config.attrKeys) {
+    for (const key of state.config.attrKeys) {
       const value = htmlElement.getAttribute(key);
-      if (value && value.trim().length >= config.minTextLen) {
+      if (value && value.trim().length >= state.config.minTextLen) {
         targets.push({
           type: "attr",
           node: htmlElement,
@@ -72,7 +72,7 @@ export function collectTargets(root: HTMLElement = document.body): TranslationTa
 export function filterNewTargets(targets: TranslationTarget[]): TranslationTarget[] {
   return targets.filter((target) => {
     const key = getTargetKey(target);
-    return !translationState.has(key);
+    return !state.translationState.has(key);
   });
 }
 
@@ -83,7 +83,7 @@ export function saveOriginalTexts(targets: TranslationTarget[]): void {
   for (const target of targets) {
     const key = getTargetKey(target);
     const original = target.get() || "";
-    translationState.set(key, {
+    state.translationState.set(key, {
       original,
       current: original,
     });

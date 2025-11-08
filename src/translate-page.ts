@@ -1,6 +1,6 @@
 // ====== ページ全体の翻訳 ======
 import type { TranslationTarget } from "./types";
-import { config, translationState, getCurrentLang, setCurrentLang, getIsTranslating, getObserver } from "./state";
+import { state, getCurrentLang, setCurrentLang, getIsTranslating, getObserver } from "./state";
 import { getTargetKey } from "./utils";
 import { collectTargets, filterNewTargets, saveOriginalTexts } from "./target-collector";
 import { translateTargetsInBatches } from "./translation";
@@ -44,9 +44,9 @@ export async function translatePage(targetLang: string = "ja"): Promise<void> {
     // ツールチップを追加（translateTargetsInBatches内で既に追加されているが、念のため）
     for (const target of finalTargets) {
       const key = getTargetKey(target);
-      const state = translationState.get(key);
-      if (state && state.current !== state.original) {
-        addOriginalTooltip(target, state.original);
+      const translationState = state.translationState.get(key);
+      if (translationState && translationState.current !== translationState.original) {
+        addOriginalTooltip(target, translationState.original);
       }
     }
   } catch (error) {
@@ -56,7 +56,7 @@ export async function translatePage(targetLang: string = "ja"): Promise<void> {
   }
 
   // 4. 動的コンテンツ監視を開始
-  if (config.observe && !getObserver()) {
+  if (state.config.observe && !getObserver()) {
     startObserver();
   }
 }

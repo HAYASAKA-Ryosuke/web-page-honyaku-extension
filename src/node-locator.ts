@@ -1,6 +1,6 @@
 // ====== ノード逆引き ======
 import type { TranslationTarget } from "./types";
-import { nodeIdMap } from "./state";
+import { state } from "./state";
 
 /**
  * キーから翻訳対象を逆引き
@@ -27,7 +27,7 @@ export function locateTargetByKey(key: string): TranslationTarget | null {
   
   while (walker.nextNode()) {
     const node = walker.currentNode;
-    const nodeId = nodeIdMap.get(node);
+    const nodeId = state.nodeIdMap.get(node);
     
     if (!nodeId) {
       continue;

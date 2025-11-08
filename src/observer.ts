@@ -1,6 +1,6 @@
 // ====== 動的コンテンツ監視 ======
 import type { TranslationTarget } from "./types";
-import { config, translationState, getCurrentLang, getIsTranslating, getObserver, setObserver } from "./state";
+import { state, getCurrentLang, getIsTranslating, getObserver, setObserver } from "./state";
 import { isVisibleTextNode, getTargetKey } from "./utils";
 import { collectTargets, filterNewTargets, saveOriginalTexts } from "./target-collector";
 import { translateTargetsInBatches } from "./translation";
@@ -58,7 +58,7 @@ export function startObserver(): void {
       } else if (
         mutation.type === "attributes" &&
         mutation.attributeName &&
-        config.attrKeys.includes(mutation.attributeName)
+        state.config.attrKeys.includes(mutation.attributeName)
       ) {
         // 属性変更を処理
         const element = mutation.target as HTMLElement;
@@ -69,7 +69,7 @@ export function startObserver(): void {
         }
         
         const value = element.getAttribute(mutation.attributeName!);
-        if (value && value.trim().length >= config.minTextLen) {
+        if (value && value.trim().length >= state.config.minTextLen) {
           newTargets.push({
             type: "attr",
             node: element,
@@ -92,9 +92,9 @@ export function startObserver(): void {
       // ツールチップを追加
       for (const target of freshTargets) {
         const key = getTargetKey(target);
-        const state = translationState.get(key);
-        if (state && state.current !== state.original) {
-          addOriginalTooltip(target, state.original);
+        const translationState = state.translationState.get(key);
+        if (translationState && translationState.current !== translationState.original) {
+          addOriginalTooltip(target, translationState.original);
         }
       }
     }
@@ -105,7 +105,7 @@ export function startObserver(): void {
     subtree: true,
     characterData: false,
     attributes: true,
-    attributeFilter: config.attrKeys,
+    attributeFilter: state.config.attrKeys,
   });
   
   setObserver(observer);

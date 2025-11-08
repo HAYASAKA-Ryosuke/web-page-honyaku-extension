@@ -1,6 +1,6 @@
 // ====== 翻訳処理 ======
 import type { TranslationTarget } from "./types";
-import { config, translationState, getIsTranslating, setIsTranslating, getObserver } from "./state";
+import { state, getIsTranslating, setIsTranslating, getObserver } from "./state";
 import { getTargetKey } from "./utils";
 import { showLoadingIndicator, hideLoadingIndicator, showErrorMessage, markTargetsAsTranslating, unmarkTargetsAsTranslating } from "./ui";
 import { addOriginalTooltip } from "./tooltip";
@@ -29,8 +29,8 @@ export async function translateTargetsInBatches(
   try {
     // バッチに分割
     const batches: TranslationTarget[][] = [];
-    for (let i = 0; i < targets.length; i += config.maxBatch) {
-      batches.push(targets.slice(i, i + config.maxBatch));
+    for (let i = 0; i < targets.length; i += state.config.maxBatch) {
+      batches.push(targets.slice(i, i + state.config.maxBatch));
     }
 
     // 翻訳中マーカーを追加
@@ -50,12 +50,12 @@ export async function translateTargetsInBatches(
       const texts = batch.map((target) => target.get() || "");
 
       // 空のバッチはスキップ
-      if (!texts.some((text) => text.trim().length >= config.minTextLen)) {
+      if (!texts.some((text) => text.trim().length >= state.config.minTextLen)) {
         continue;
       }
 
       try {
-        const translations = await config.provider.translate(texts, targetLang);
+        const translations = await state.config.provider.translate(texts, targetLang);
 
         if (!Array.isArray(translations) || translations.length !== texts.length) {
           console.warn("翻訳プロバイダーが予期しない結果を返しました");
@@ -70,11 +70,11 @@ export async function translateTargetsInBatches(
           if (typeof translation === "string" && translation.trim() !== "") {
             target.set(translation);
             const key = getTargetKey(target);
-            const state = translationState.get(key);
-            if (state) {
-              state.current = translation;
+            const translationState = state.translationState.get(key);
+            if (translationState) {
+              translationState.current = translation;
               // 原文をtitle属性に設定（ホバーで表示）
-              addOriginalTooltip(target, state.original);
+              addOriginalTooltip(target, translationState.original);
             }
           }
         }
@@ -115,7 +115,7 @@ export async function translateTargetsInBatches(
     setIsTranslating(false);
     
     // Observerを再開（元々動いていた場合）
-    if (wasObserving && config.observe) {
+    if (wasObserving && state.config.observe) {
       startObserver();
     }
   }

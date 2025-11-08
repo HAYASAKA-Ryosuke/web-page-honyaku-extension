@@ -1,6 +1,6 @@
 // ====== ユーティリティ関数 ======
 import type { TranslationTarget } from "./types";
-import { config, nodeIdMap } from "./state";
+import { state } from "./state";
 
 /**
  * テキストノードが可視かどうかを判定
@@ -11,7 +11,7 @@ export function isVisibleTextNode(node: Node): boolean {
   }
 
   const text = node.nodeValue?.trim();
-  if (!text || text.length < config.minTextLen) {
+  if (!text || text.length < state.config.minTextLen) {
     return false;
   }
 
@@ -55,10 +55,10 @@ export function isVisibleTextNode(node: Node): boolean {
  * ノードの一意IDを取得（なければ生成）
  */
 export function getNodeId(node: Node | HTMLElement): string {
-  let id = nodeIdMap.get(node);
+  let id = state.nodeIdMap.get(node);
   if (!id) {
     id = `n${Math.random().toString(36).slice(2)}${Date.now()}`;
-    nodeIdMap.set(node, id);
+    state.nodeIdMap.set(node, id);
   }
   return id;
 }

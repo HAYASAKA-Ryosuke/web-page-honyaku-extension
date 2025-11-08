@@ -1,5 +1,5 @@
 // ====== 原文復元 ======
-import { config, translationState } from "./state";
+import { state } from "./state";
 import { locateTargetByKey } from "./node-locator";
 
 /**
@@ -10,11 +10,11 @@ export function restoreOriginal(): void {
   const originalDisplays = document.querySelectorAll(".translator-original-display");
   originalDisplays.forEach((el) => el.remove());
   
-  for (const [key, state] of translationState.entries()) {
+  for (const [key, translationState] of state.translationState.entries()) {
     const target = locateTargetByKey(key);
     if (target) {
-      target.set(state.original);
-      state.current = state.original;
+      target.set(translationState.original);
+      translationState.current = translationState.original;
       
       // 属性をクリーンアップ
       if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
@@ -43,7 +43,7 @@ export function restoreOriginal(): void {
         element.removeAttribute("data-tooltip-handler-added");
         
         // 属性のdata属性も削除
-        for (const key of config.attrKeys) {
+        for (const key of state.config.attrKeys) {
           element.removeAttribute(`data-original-${key}`);
         }
       }

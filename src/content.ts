@@ -1,5 +1,5 @@
 // ====== 初期化とメッセージハンドラー ======
-import { initializeConfig, loadShowOriginalSetting, showOriginal, translationState, tooltipControllers } from "./state";
+import { state, initializeConfig, loadShowOriginalSetting } from "./state";
 import { translatePage } from "./translate-page";
 import { translateSelection } from "./translate-selection";
 import { restoreOriginal } from "./restore";
@@ -55,48 +55,48 @@ chrome.runtime.onMessage.addListener(
       // 設定を再読み込み
       loadShowOriginalSetting().then(() => {
         // 原文表示がOFFになった場合、既存のツールチップを削除
-        if (!showOriginal) {
+        if (!state.showOriginal) {
           const existingDisplays = document.querySelectorAll(".translator-original-display");
           existingDisplays.forEach((display) => display.remove());
           
           // すべてのイベントリスナーを削除（AbortControllerで管理）
           const elementsWithTooltip = document.querySelectorAll("[data-tooltip-handler-added]");
           elementsWithTooltip.forEach((element) => {
-            const controller = tooltipControllers.get(element as HTMLElement);
+            const controller = state.tooltipControllers.get(element as HTMLElement);
             if (controller) {
               controller.abort();
-              tooltipControllers.delete(element as HTMLElement);
+              state.tooltipControllers.delete(element as HTMLElement);
             }
             element.removeAttribute("data-tooltip-handler-added");
           });
         } else {
           // 原文表示がONになった場合、既存の翻訳済み要素に対してツールチップを再追加
-          for (const [key, state] of translationState.entries()) {
-            if (state.current !== state.original) {
+          for (const [key, translationState] of state.translationState.entries()) {
+            if (translationState.current !== translationState.original) {
               const target = locateTargetByKey(key);
               if (target) {
                 // 既存のツールチップハンドラーを削除（再追加のため）
                 if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
                   const parent = target.node.parentElement;
                   if (parent) {
-                    const controller = tooltipControllers.get(parent);
+                    const controller = state.tooltipControllers.get(parent);
                     if (controller) {
                       controller.abort();
-                      tooltipControllers.delete(parent);
+                      state.tooltipControllers.delete(parent);
                     }
                     parent.removeAttribute("data-tooltip-handler-added");
                   }
                 } else if (target.type === "attr" && target.node instanceof HTMLElement) {
                   const element = target.node;
-                  const controller = tooltipControllers.get(element);
+                  const controller = state.tooltipControllers.get(element);
                   if (controller) {
                     controller.abort();
-                    tooltipControllers.delete(element);
+                    state.tooltipControllers.delete(element);
                   }
                   element.removeAttribute("data-tooltip-handler-added");
                 }
                 // ツールチップを再追加
-                addOriginalTooltip(target, state.original);
+                addOriginalTooltip(target, translationState.original);
               }
             }
           }

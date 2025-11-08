@@ -1,6 +1,6 @@
 // ====== 原文表示（ツールチップ） ======
 import type { TranslationTarget } from "./types";
-import { config, translationState, nodeIdMap, tooltipControllers, showOriginal } from "./state";
+import { state } from "./state";
 import { getTargetKey } from "./utils";
 import { injectTooltipStyles } from "./styles";
 
@@ -13,12 +13,12 @@ function getAllOriginalTexts(element: HTMLElement): string[] {
   
   while (walker.nextNode()) {
     const node = walker.currentNode;
-    const nodeId = nodeIdMap.get(node);
+    const nodeId = state.nodeIdMap.get(node);
     if (nodeId) {
       const key = `text:${nodeId}`;
-      const state = translationState.get(key);
-      if (state && state.current !== state.original) {
-        texts.push(state.original);
+      const translationState = state.translationState.get(key);
+      if (translationState && translationState.current !== translationState.original) {
+        texts.push(translationState.original);
       }
     }
   }
@@ -31,7 +31,7 @@ function getAllOriginalTexts(element: HTMLElement): string[] {
  */
 export function addOriginalTooltip(target: TranslationTarget, original: string): void {
   // 原文表示がOFFの場合は何もしない
-  if (!showOriginal) {
+  if (!state.showOriginal) {
     return;
   }
   
@@ -54,7 +54,7 @@ export function addOriginalTooltip(target: TranslationTarget, original: string):
       
       // AbortControllerを作成してイベントリスナーを管理
       const controller = new AbortController();
-      tooltipControllers.set(parent, controller);
+      state.tooltipControllers.set(parent, controller);
       
       // マウスオーバー時に原文を表示
       parent.addEventListener("mouseenter", () => {
@@ -266,9 +266,9 @@ export function addOriginalTooltip(target: TranslationTarget, original: string):
     
     // 属性の原文をdata属性に保存
     const key = getTargetKey(target);
-    const state = translationState.get(key);
-    if (state && state.current !== state.original) {
-      element.setAttribute(`data-original-${attrKey}`, state.original);
+    const translationState = state.translationState.get(key);
+    if (translationState && translationState.current !== translationState.original) {
+      element.setAttribute(`data-original-${attrKey}`, translationState.original);
     }
     
     // マウスオーバー時に原文を表示（既に追加されていない場合のみ）
@@ -277,7 +277,7 @@ export function addOriginalTooltip(target: TranslationTarget, original: string):
       
       // AbortControllerを作成してイベントリスナーを管理
       const controller = new AbortController();
-      tooltipControllers.set(element, controller);
+      state.tooltipControllers.set(element, controller);
       
       element.addEventListener("mouseenter", () => {
         // 既に固定表示されている場合は何もしない
@@ -294,7 +294,7 @@ export function addOriginalTooltip(target: TranslationTarget, original: string):
         
         // すべての属性の原文を取得
         const allOriginals: string[] = [];
-        for (const key of config.attrKeys) {
+        for (const key of state.config.attrKeys) {
           const originalText = element.getAttribute(`data-original-${key}`);
           if (originalText) {
             allOriginals.push(originalText);
