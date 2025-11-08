@@ -664,13 +664,10 @@ function injectTooltipStyles(): void {
       width: 16px;
       height: 16px;
       cursor: pointer;
-      opacity: 0;
+      opacity: 1;
       transition: opacity 0.2s;
       pointer-events: auto;
       flex-shrink: 0;
-    }
-    .translator-original-display:hover .translator-pin-icon {
-      opacity: 1;
     }
     .translator-original-display.pinned .translator-pin-icon {
       opacity: 1;
@@ -861,17 +858,10 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
             e.stopPropagation();
             // 固定されていない場合のみ削除
             if (!originalDisplay.classList.contains("pinned")) {
-              // マウスが親要素またはその子要素に移動した場合は削除しない
+              // マウスが原文表示要素内の他の要素に移動した場合は削除しない
               const relatedTarget = e.relatedTarget as Node | null;
-              if (relatedTarget) {
-                // 親要素内の他の要素に移動した場合（マージン部分を通過中など）
-                if (parent.contains(relatedTarget)) {
-                  return;
-                }
-                // 原文表示要素内の他の要素に移動した場合
-                if (originalDisplay.contains(relatedTarget)) {
-                  return;
-                }
+              if (relatedTarget && originalDisplay.contains(relatedTarget)) {
+                return;
               }
               // 少し待ってから削除（マージン部分を通過する時間を考慮）
               const timeoutId = setTimeout(() => {
@@ -882,14 +872,14 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
                     (e as MouseEvent).clientY
                   );
                   
-                  // マウスが親要素または原文表示要素内にある場合は削除しない
-                  if (mouseElement && (parent.contains(mouseElement) || originalDisplay.contains(mouseElement))) {
+                  // マウスが原文表示要素内にある場合は削除しない
+                  if (mouseElement && originalDisplay.contains(mouseElement)) {
                     return;
                   }
                   
                   originalDisplay.remove();
                 }
-              }, 150);
+              }, 100);
               
               // マウスが戻ってきた場合はタイマーをキャンセル
               const cancelTimeout = () => {
@@ -1075,12 +1065,35 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
             e.stopPropagation();
             // 固定されていない場合のみ削除
             if (!originalDisplay.classList.contains("pinned")) {
-              // マウスが親要素に移動した場合は削除しない（マージン部分を通過中）
+              // マウスが原文表示要素内の他の要素に移動した場合は削除しない
               const relatedTarget = e.relatedTarget as Node | null;
-              if (relatedTarget && element.contains(relatedTarget)) {
+              if (relatedTarget && originalDisplay.contains(relatedTarget)) {
                 return;
               }
-              originalDisplay.remove();
+              // 少し待ってから削除（マージン部分を通過する時間を考慮）
+              const timeoutId = setTimeout(() => {
+                if (originalDisplay && !originalDisplay.classList.contains("pinned")) {
+                  // 現在のマウス位置を取得
+                  const mouseElement = document.elementFromPoint(
+                    (e as MouseEvent).clientX,
+                    (e as MouseEvent).clientY
+                  );
+                  
+                  // マウスが原文表示要素内にある場合は削除しない
+                  if (mouseElement && originalDisplay.contains(mouseElement)) {
+                    return;
+                  }
+                  
+                  originalDisplay.remove();
+                }
+              }, 100);
+              
+              // マウスが戻ってきた場合はタイマーをキャンセル
+              const cancelTimeout = () => {
+                clearTimeout(timeoutId);
+                originalDisplay.removeEventListener("mouseenter", cancelTimeout);
+              };
+              originalDisplay.addEventListener("mouseenter", cancelTimeout, { signal: controller.signal });
             }
           }, { signal: controller.signal });
         }
