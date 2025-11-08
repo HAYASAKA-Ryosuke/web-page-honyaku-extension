@@ -756,10 +756,10 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
           return;
         }
         
-        // 既存の非固定の原文表示要素があれば削除（固定されたものは除外）
+        // 既存の非固定の原文表示要素がある場合は何もしない（既に表示されている）
         const existingNonPinned = parent.querySelector(".translator-original-display:not(.pinned)");
         if (existingNonPinned) {
-          existingNonPinned.remove();
+          return;
         }
         
           // 要素内のすべての原文を取得
@@ -838,6 +838,12 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
                 originalDisplay.style.overflowY = "auto";
               }
             }
+          
+          // DOMに追加する直前に再度チェック（多重生成を防ぐ）
+          const existingBeforeInsert = parent.querySelector(".translator-original-display:not(.pinned)");
+          if (existingBeforeInsert) {
+            existingBeforeInsert.remove();
+          }
           
           // 親要素の最初の子として挿入
           if (parent.firstChild) {
@@ -979,10 +985,10 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
           return;
         }
         
-        // 既存の非固定の原文表示要素があれば削除（固定されたものは除外）
+        // 既存の非固定の原文表示要素がある場合は何もしない（既に表示されている）
         const existingNonPinned = element.querySelector(".translator-original-display:not(.pinned)");
         if (existingNonPinned) {
-          existingNonPinned.remove();
+          return;
         }
         
         // すべての属性の原文を取得
@@ -1046,6 +1052,12 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
           
           originalDisplay.appendChild(header);
           originalDisplay.appendChild(content);
+          
+          // DOMに追加する直前に再度チェック（多重生成を防ぐ）
+          const existingBeforeInsert = element.querySelector(".translator-original-display:not(.pinned)");
+          if (existingBeforeInsert) {
+            existingBeforeInsert.remove();
+          }
           
           // 要素の最初の子として挿入
           if (element.firstChild) {
