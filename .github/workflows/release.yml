@@ -9,6 +9,8 @@ on:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # リリースを作成するために必要
     
     steps:
       - name: Checkout code
