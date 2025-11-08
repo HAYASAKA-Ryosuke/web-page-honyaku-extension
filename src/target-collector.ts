@@ -101,71 +101,22 @@ export function collectTargets(root: HTMLElement = document.body): TranslationTa
       };
 
       // 翻訳結果を各ノードに分配する関数
+      // 1文字単位で改行される問題を防ぐため、翻訳結果は最初のノードにすべて割り当て、
+      // 残りのノードは空文字列にする
       const setCombinedTranslation = (translated: string): void => {
         const originalText = getCombinedText();
         if (originalText.length === 0 || translated.length === 0) {
           return;
         }
 
-        // 翻訳結果を元のテキストノードの長さの比率に基づいて分配
-        // ただし、単語や文の境界で切らないようにする
-        let remainingText = translated.trim();
-        const totalOriginalLength = originalText.length;
-
-        for (let i = 0; i < textNodes.length; i++) {
-          const node = textNodes[i];
-          const nodeText = node.nodeValue || "";
-          const nodeLength = nodeText.length;
-          
-          if (i === textNodes.length - 1) {
-            // 最後のノードには残りすべてを割り当て
-            node.nodeValue = remainingText;
-          } else {
-            // 元のテキストの長さの比率に基づいて、翻訳結果の割り当て位置を計算
-            const ratio = nodeLength / totalOriginalLength;
-            const targetLength = Math.round(translated.length * ratio);
-            
-            // 割り当て位置を計算（残りのテキストから）
-            let cutIndex = Math.min(targetLength, remainingText.length);
-            
-            // 単語や文の境界で切らないように調整
-            if (cutIndex < remainingText.length) {
-              // 次のスペース、句読点、または改行の位置を探す
-              const searchStart = Math.max(0, Math.round(cutIndex * 0.7));
-              const searchEnd = Math.min(remainingText.length, Math.round(cutIndex * 1.3));
-              
-              let bestCutIndex = cutIndex;
-              let bestDistance = Math.abs(cutIndex - bestCutIndex);
-              
-              // スペースの位置を探す
-              for (let pos = searchStart; pos <= searchEnd; pos++) {
-                if (remainingText[pos] === " " || remainingText[pos] === "\n") {
-                  const distance = Math.abs(pos - cutIndex);
-                  if (distance < bestDistance) {
-                    bestCutIndex = pos + 1;
-                    bestDistance = distance;
-                  }
-                }
-              }
-              
-              // 句読点の位置を探す
-              const punctMatch = remainingText.substring(searchStart, searchEnd + 1).search(/[.,;:!?、。]/);
-              if (punctMatch >= 0) {
-                const punctPos = searchStart + punctMatch + 1;
-                const distance = Math.abs(punctPos - cutIndex);
-                if (distance < bestDistance) {
-                  bestCutIndex = punctPos;
-                  bestDistance = distance;
-                }
-              }
-              
-              cutIndex = bestCutIndex;
-            }
-            
-            const assignedText = remainingText.substring(0, cutIndex).trim();
-            node.nodeValue = assignedText;
-            remainingText = remainingText.substring(cutIndex).trim();
-          }
+        // 翻訳結果を最初のテキストノードにすべて割り当て
+        if (textNodes.length > 0) {
+          textNodes[0].nodeValue = translated;
+        }
+        
+        // 残りのテキストノードは空文字列にする（DOM構造を保持するため）
+        for (let i = 1; i < textNodes.length; i++) {
+          textNodes[i].nodeValue = "";
         }
       };
 
