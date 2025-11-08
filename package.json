@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:zip": "vite build && node scripts/build-zip.js",
     "dev": "vite",
     "preview": "vite preview",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx --fix"

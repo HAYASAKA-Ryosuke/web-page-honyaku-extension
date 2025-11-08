@@ -8,6 +8,41 @@
 - 原文表示（マウスオーバー）
 - 原文表示のピン止め固定
 
+## インストール方法
+
+### 方法1: GitHub Releasesからインストール（推奨）
+
+GitHub Actionsで自動ビルドされたリリースからインストールできます。
+
+1. [Releases](https://github.com/HAYASAKA-Ryosuke/web-page-honyaku-extension/releases)ページから最新のリリースを開く
+2. `extension.zip`ファイルをダウンロード
+3. ZIPファイルを解凍
+4. Chromeで `chrome://extensions/` を開く
+5. 右上の「開発者モード」を有効にする
+6. 「パッケージ化されていない拡張機能を読み込む」をクリック
+7. 解凍したフォルダを選択（`manifest.json`が含まれているフォルダ）
+
+> **💡 ヒント**: 新しいバージョンがリリースされると、GitHub Actionsが自動的にビルドしてリリースにアップロードします。
+
+### 方法2: ソースコードからビルド
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/HAYASAKA-Ryosuke/web-page-honyaku-extension.git
+cd web-page-honyaku-extension
+
+# 依存関係のインストール
+pnpm install
+
+# ビルド
+pnpm build
+
+# ビルドしたdistフォルダが生成されます
+# Chromeで chrome://extensions/ を開き、
+# 「開発者モード」を有効にして「パッケージ化されていない拡張機能を読み込む」から
+# distフォルダを選択してください
+```
+
 ## セキュリティに関する重要な注意事項
 
 ### APIキーの取り扱い

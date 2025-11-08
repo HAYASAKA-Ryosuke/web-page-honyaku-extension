@@ -8,6 +8,7 @@ yarn.lock
 dist/
 *.crx
 *.pem
+extension.zip
 
 # Environment variables
 .env

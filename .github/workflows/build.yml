@@ -1,0 +1,44 @@
+name: Build on PR
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.15.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build extension
+        run: pnpm build
+
+      - name: Check build output
+        run: |
+          if [ ! -f "dist/manifest.json" ]; then
+            echo "❌ ビルドに失敗しました: manifest.jsonが見つかりません"
+            exit 1
+          fi
+          echo "✅ ビルドが成功しました"
+
