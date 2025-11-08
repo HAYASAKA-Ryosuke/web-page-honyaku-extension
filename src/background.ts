@@ -29,18 +29,12 @@ async function callClaudeAPI(
     .map((text, index) => `${index + 1}. ${text}`)
     .join("\n");
 
-//  const prompt = `以下のテキストを${targetLangName}に翻訳してください。各項目を番号付きリストの形式で返してください。元の番号を保持してください。
-//
-//${combinedText}
-//
-//翻訳結果のみを返してください。説明や追加のテキストは不要です。`;
-  const prompt = `以下の英語テキストを自然な日本語に翻訳してください。
+const prompt = `以下の英語テキストを自然な日本語に翻訳してください。
 
 条件:
-- 直訳ではなく、自然な日本語として意味の流れを再構成してよい
-- 英語の文構造に引きずられず、日本語のリズムと焦点を優先する
+- 直訳ではなく、自然な日本語として意味の流れを再構成すること
 - 技術エッセイ風の語り口で、論理的だが人間味のあるトーンにする
-- 文体は「だ・である調」を用いる（文末は〜だ／〜である／〜なのだ等を使い分ける）
+- 文体は「だ・である調」を用いる
 - 専門用語は正確に訳し、必要なら英語を併記（例: 和型 (sum type)）
 - カタカナ語を乱用しない
 - 冗長な構文を避け、文の主語と述語の対応を明確にする
@@ -183,11 +177,6 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "ページ全体を翻訳",
     contexts: ["page"]
   });
-  chrome.contextMenus.create({
-    id: "translatePageViaGoogle",
-    title: "ページ全体をGoogle翻訳で開く",
-    contexts: ["page"]
-  });
 });
 
 
@@ -240,13 +229,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         await chrome.action.setBadgeText({ tabId: tab.id, text: "✗" });
         setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
       }
-    }
-  }
-  
-  if (info.menuItemId === 'translatePageViaGoogle') {
-    if (tab?.url) {
-      const googleTranslateUrl = `https://translate.google.com/translate?sl=auto&tl=ja&u=${encodeURIComponent(tab.url)}`;
-      chrome.tabs.create({ url: googleTranslateUrl });
     }
   }
 });

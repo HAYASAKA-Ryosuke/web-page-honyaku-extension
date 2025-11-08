@@ -226,6 +226,9 @@ function showLoadingIndicator(totalBatches: number, currentBatch: number): void 
     document.body.appendChild(indicator);
   }
   
+  // エラー状態をリセット
+  indicator.classList.remove("error", "warning");
+  
   const spinner = document.createElement("div");
   spinner.className = "translator-loading-spinner";
   
@@ -239,6 +242,54 @@ function showLoadingIndicator(totalBatches: number, currentBatch: number): void 
   indicator.innerHTML = "";
   indicator.appendChild(spinner);
   indicator.appendChild(text);
+}
+
+/**
+ * エラーメッセージを表示
+ */
+function showErrorMessage(message: string, details?: string): void {
+  injectLoadingStyles();
+  
+  let indicator = document.getElementById("translator-loading-indicator");
+  if (!indicator) {
+    indicator = document.createElement("div");
+    indicator.id = "translator-loading-indicator";
+    indicator.className = "translator-loading-indicator error";
+    document.body.appendChild(indicator);
+  } else {
+    indicator.className = "translator-loading-indicator error";
+  }
+  
+  const icon = document.createElement("span");
+  icon.textContent = "⚠️";
+  icon.style.fontSize = "18px";
+  
+  const text = document.createElement("span");
+  text.textContent = message;
+  
+  indicator.innerHTML = "";
+  indicator.appendChild(icon);
+  indicator.appendChild(text);
+  
+  if (details) {
+    const detailEl = document.createElement("div");
+    detailEl.className = "translator-error-message";
+    detailEl.textContent = details;
+    indicator.appendChild(detailEl);
+  }
+  
+  // 5秒後に自動的に非表示（ユーザーがクリックしても閉じられるように）
+  setTimeout(() => {
+    if (indicator && indicator.parentNode) {
+      indicator.remove();
+    }
+  }, 5000);
+  
+  // クリックで閉じられるように
+  indicator.style.cursor = "pointer";
+  indicator.addEventListener("click", () => {
+    indicator.remove();
+  });
 }
 
 /**
@@ -343,6 +394,27 @@ async function translateTargetsInBatches(
         }
       } catch (error) {
         console.error("翻訳エラー:", error);
+        const errorMessage = error instanceof Error ? error.message : "不明なエラー";
+        
+        // 最初のエラー時のみユーザーに表示
+        if (batchIndex === 0) {
+          let userMessage = "翻訳中にエラーが発生しました";
+          let details = errorMessage;
+          
+          // APIキー未設定の場合は特別なメッセージ
+          if (errorMessage.includes("APIキーが設定されていません") || errorMessage.includes("Claude APIキー")) {
+            userMessage = "APIキーが設定されていません";
+            details = "拡張機能のポップアップからAPIキーを設定してください";
+          } else if (errorMessage.includes("401") || errorMessage.includes("認証")) {
+            userMessage = "APIキーが無効です";
+            details = "拡張機能のポップアップでAPIキーを確認してください";
+          } else if (errorMessage.includes("429") || errorMessage.includes("レート制限")) {
+            userMessage = "APIのレート制限に達しました";
+            details = "しばらく待ってから再度お試しください";
+          }
+          
+          showErrorMessage(userMessage, details);
+        }
         // エラーが発生しても次のバッチを続行
       }
     }
@@ -379,6 +451,19 @@ function injectLoadingStyles(): void {
       align-items: center;
       gap: 10px;
       font-family: system-ui, -apple-system, sans-serif;
+      max-width: 400px;
+    }
+    .translator-loading-indicator.error {
+      background: #ff4444;
+    }
+    .translator-loading-indicator.warning {
+      background: #ff9800;
+    }
+    .translator-error-message {
+      margin-top: 8px;
+      font-size: 12px;
+      opacity: 0.9;
+      line-height: 1.4;
     }
     .translator-loading-spinner {
       width: 16px;
@@ -892,7 +977,7 @@ function addOriginalTooltip(target: TranslationTarget, original: string): void {
 async function translateSelection(targetLang: string = "ja"): Promise<void> {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) {
-    console.log("選択されたテキストがありません");
+    showErrorMessage("テキストが選択されていません", "翻訳したいテキストを選択してください");
     return;
   }
 
@@ -900,7 +985,7 @@ async function translateSelection(targetLang: string = "ja"): Promise<void> {
   const selectedText = range.toString().trim();
 
   if (!selectedText || selectedText.length < config.minTextLen) {
-    console.log("選択されたテキストが短すぎます");
+    showErrorMessage("テキストが短すぎます", "もう少し長いテキストを選択してください");
     return;
   }
 
@@ -978,23 +1063,29 @@ async function translatePage(targetLang: string = "ja"): Promise<void> {
   const newTargets = filterNewTargets(allTargets);
 
   if (newTargets.length === 0) {
-    console.log("翻訳対象が見つかりませんでした");
+    showErrorMessage("翻訳対象が見つかりませんでした", "ページに翻訳可能なテキストがありません");
     return;
   }
 
-  // 2. 原文を保存
-  saveOriginalTexts(newTargets);
+  try {
+    // 2. 原文を保存
+    saveOriginalTexts(newTargets);
 
-  // 3. バッチ翻訳を実行
-  await translateTargetsInBatches(newTargets, targetLang);
-  
-  // ツールチップを追加（translateTargetsInBatches内で既に追加されているが、念のため）
-  for (const target of newTargets) {
-    const key = getTargetKey(target);
-    const state = translationState.get(key);
-    if (state && state.current !== state.original) {
-      addOriginalTooltip(target, state.original);
+    // 3. バッチ翻訳を実行
+    await translateTargetsInBatches(newTargets, targetLang);
+    
+    // ツールチップを追加（translateTargetsInBatches内で既に追加されているが、念のため）
+    for (const target of newTargets) {
+      const key = getTargetKey(target);
+      const state = translationState.get(key);
+      if (state && state.current !== state.original) {
+        addOriginalTooltip(target, state.original);
+      }
     }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "不明なエラー";
+    showErrorMessage("翻訳に失敗しました", errorMessage);
+    throw error;
   }
 
   // 4. 動的コンテンツ監視を開始
@@ -1261,40 +1352,6 @@ function createLibreTranslateProvider(config: {
         return [data.translatedText];
       }
       return texts.map((_, i) => data[i]?.translatedText ?? "");
-    },
-  };
-}
-
-/**
- * Google Cloud Translation プロバイダー
- */
-function createGoogleCloudTranslateProvider(config: {
-  endpoint: string;
-  apiKey: string;
-  model?: string;
-}): TranslationProvider {
-  return {
-    async translate(texts: string[], target: string): Promise<string[]> {
-      const response = await fetch(
-        `${config.endpoint}?key=${encodeURIComponent(config.apiKey)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            q: texts,
-            target,
-            format: "text",
-            model: config.model || "nmt",
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Google翻訳APIエラー: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return (data?.data?.translations || []).map((t: any) => t.translatedText || "");
     },
   };
 }
