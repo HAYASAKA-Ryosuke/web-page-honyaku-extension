@@ -324,15 +324,32 @@ function hideLoadingIndicator(): void {
 /**
  * 翻訳対象に翻訳中マーカーを追加
  */
+// 翻訳中の要素を追跡（重複を防ぐため）
+const translatingElements = new Set<HTMLElement>();
+
 function markTargetsAsTranslating(targets: TranslationTarget[]): void {
   for (const target of targets) {
     if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
       const parent = target.node.parentElement;
-      if (parent) {
-        parent.setAttribute("data-translating", "true");
+      if (parent && !translatingElements.has(parent)) {
+        // 親要素が既に翻訳中の親要素の子要素の場合は、外側の親要素のみにマーカーを設定
+        // これにより、入れ子になった親要素に重複してマーカーが設定されるのを防ぐ
+        const hasTranslatingAncestor = parent.closest('[data-translating="true"]');
+        if (!hasTranslatingAncestor) {
+          parent.setAttribute("data-translating", "true");
+          translatingElements.add(parent);
+        }
       }
     } else if (target.type === "attr" && target.node instanceof HTMLElement) {
-      target.node.setAttribute("data-translating", "true");
+      const element = target.node;
+      if (!translatingElements.has(element)) {
+        // 属性の場合も同様に、既に翻訳中の親要素の子要素の場合はスキップ
+        const hasTranslatingAncestor = element.closest('[data-translating="true"]');
+        if (!hasTranslatingAncestor) {
+          element.setAttribute("data-translating", "true");
+          translatingElements.add(element);
+        }
+      }
     }
   }
 }
@@ -341,14 +358,32 @@ function markTargetsAsTranslating(targets: TranslationTarget[]): void {
  * 翻訳対象の翻訳中マーカーを削除
  */
 function unmarkTargetsAsTranslating(targets: TranslationTarget[]): void {
+  // 削除対象の要素を収集
+  const elementsToUnmark = new Set<HTMLElement>();
+  
   for (const target of targets) {
     if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
       const parent = target.node.parentElement;
       if (parent) {
-        parent.removeAttribute("data-translating");
+        elementsToUnmark.add(parent);
       }
     } else if (target.type === "attr" && target.node instanceof HTMLElement) {
-      target.node.removeAttribute("data-translating");
+      elementsToUnmark.add(target.node);
+    }
+  }
+  
+  // 他の翻訳対象がまだ存在するかチェックしてから削除
+  for (const element of elementsToUnmark) {
+    // この要素に関連する翻訳対象がまだ存在するかチェック
+    let hasOtherTranslatingTargets = false;
+    
+    // translationStateをチェックして、この要素に関連する翻訳対象がまだ翻訳中かどうかを確認
+    // 簡易的な方法：data-translating属性を持つ子要素がまだ存在するかチェック
+    const hasTranslatingChildren = element.querySelector('[data-translating="true"]');
+    
+    if (!hasTranslatingChildren && translatingElements.has(element)) {
+      element.removeAttribute("data-translating");
+      translatingElements.delete(element);
     }
   }
 }
@@ -1207,6 +1242,12 @@ async function translateSelection(targetLang: string = "ja"): Promise<void> {
  * ページ全体を翻訳
  */
 async function translatePage(targetLang: string = "ja"): Promise<void> {
+  // 既に翻訳中の場合はスキップ（重複翻訳を防ぐ）
+  if (isTranslating) {
+    console.log("[Translator] 翻訳処理が既に実行中です。スキップします。");
+    return;
+  }
+
   currentLang = targetLang;
 
   // 1. 翻訳対象を収集
@@ -1219,14 +1260,19 @@ async function translatePage(targetLang: string = "ja"): Promise<void> {
   }
 
   try {
-    // 2. 原文を保存
-    saveOriginalTexts(newTargets);
+    // 2. 原文を保存（念のため、再度フィルタリングして重複を防ぐ）
+    const finalTargets = filterNewTargets(newTargets);
+    if (finalTargets.length === 0) {
+      console.log("[Translator] 保存前に再度フィルタリングした結果、翻訳対象が0件になりました。");
+      return;
+    }
+    saveOriginalTexts(finalTargets);
 
     // 3. バッチ翻訳を実行
-    await translateTargetsInBatches(newTargets, targetLang);
+    await translateTargetsInBatches(finalTargets, targetLang);
     
     // ツールチップを追加（translateTargetsInBatches内で既に追加されているが、念のため）
-    for (const target of newTargets) {
+    for (const target of finalTargets) {
       const key = getTargetKey(target);
       const state = translationState.get(key);
       if (state && state.current !== state.original) {
