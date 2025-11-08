@@ -213,6 +213,77 @@ function saveOriginalTexts(targets: TranslationTarget[]): void {
 // ====== 翻訳処理 ======
 
 /**
+ * 翻訳中インジケーターを表示
+ */
+function showLoadingIndicator(totalBatches: number, currentBatch: number): void {
+  injectLoadingStyles();
+  
+  let indicator = document.getElementById("translator-loading-indicator");
+  if (!indicator) {
+    indicator = document.createElement("div");
+    indicator.id = "translator-loading-indicator";
+    indicator.className = "translator-loading-indicator";
+    document.body.appendChild(indicator);
+  }
+  
+  const spinner = document.createElement("div");
+  spinner.className = "translator-loading-spinner";
+  
+  const text = document.createElement("span");
+  if (totalBatches > 1) {
+    text.textContent = `翻訳中... (${currentBatch}/${totalBatches})`;
+  } else {
+    text.textContent = "翻訳中...";
+  }
+  
+  indicator.innerHTML = "";
+  indicator.appendChild(spinner);
+  indicator.appendChild(text);
+}
+
+/**
+ * 翻訳中インジケーターを非表示
+ */
+function hideLoadingIndicator(): void {
+  const indicator = document.getElementById("translator-loading-indicator");
+  if (indicator) {
+    indicator.remove();
+  }
+}
+
+/**
+ * 翻訳対象に翻訳中マーカーを追加
+ */
+function markTargetsAsTranslating(targets: TranslationTarget[]): void {
+  for (const target of targets) {
+    if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
+      const parent = target.node.parentElement;
+      if (parent) {
+        parent.setAttribute("data-translating", "true");
+      }
+    } else if (target.type === "attr" && target.node instanceof HTMLElement) {
+      target.node.setAttribute("data-translating", "true");
+    }
+  }
+}
+
+/**
+ * 翻訳対象の翻訳中マーカーを削除
+ */
+function unmarkTargetsAsTranslating(targets: TranslationTarget[]): void {
+  for (const target of targets) {
+    if (target.type === "text" && target.node.nodeType === Node.TEXT_NODE) {
+      const parent = target.node.parentElement;
+      if (parent) {
+        parent.removeAttribute("data-translating");
+      }
+    } else if (target.type === "attr" && target.node instanceof HTMLElement) {
+      target.node.removeAttribute("data-translating");
+    }
+  }
+}
+
+/**
  * バッチ単位で翻訳を実行
  */
 async function translateTargetsInBatches(
@@ -225,44 +296,125 @@ async function translateTargetsInBatches(
     batches.push(targets.slice(i, i + config.maxBatch));
   }
 
-  // 各バッチを翻訳
-  for (const batch of batches) {
-    const texts = batch.map((target) => target.get() || "");
+  // 翻訳中マーカーを追加
+  markTargetsAsTranslating(targets);
+  
+  // 翻訳中インジケーターを表示
+  showLoadingIndicator(batches.length, 0);
 
-    // 空のバッチはスキップ
-    if (!texts.some((text) => text.trim().length >= config.minTextLen)) {
-      continue;
-    }
+  try {
+    // 各バッチを翻訳
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // 進捗を更新
+      showLoadingIndicator(batches.length, batchIndex + 1);
+      
+      const texts = batch.map((target) => target.get() || "");
 
-    try {
-      const translations = await config.provider.translate(texts, targetLang);
-
-      if (!Array.isArray(translations) || translations.length !== texts.length) {
-        console.warn("翻訳プロバイダーが予期しない結果を返しました");
+      // 空のバッチはスキップ
+      if (!texts.some((text) => text.trim().length >= config.minTextLen)) {
         continue;
       }
 
-      // 翻訳結果を適用
-      for (let i = 0; i < batch.length; i++) {
-        const target = batch[i];
-        const translation = translations[i];
+      try {
+        const translations = await config.provider.translate(texts, targetLang);
 
-        if (typeof translation === "string" && translation.trim() !== "") {
-          target.set(translation);
-          const key = getTargetKey(target);
-          const state = translationState.get(key);
-          if (state) {
-            state.current = translation;
-            // 原文をtitle属性に設定（ホバーで表示）
-            addOriginalTooltip(target, state.original);
+        if (!Array.isArray(translations) || translations.length !== texts.length) {
+          console.warn("翻訳プロバイダーが予期しない結果を返しました");
+          continue;
+        }
+
+        // 翻訳結果を適用
+        for (let i = 0; i < batch.length; i++) {
+          const target = batch[i];
+          const translation = translations[i];
+
+          if (typeof translation === "string" && translation.trim() !== "") {
+            target.set(translation);
+            const key = getTargetKey(target);
+            const state = translationState.get(key);
+            if (state) {
+              state.current = translation;
+              // 原文をtitle属性に設定（ホバーで表示）
+              addOriginalTooltip(target, state.original);
+            }
           }
         }
+      } catch (error) {
+        console.error("翻訳エラー:", error);
+        // エラーが発生しても次のバッチを続行
       }
-    } catch (error) {
-      console.error("翻訳エラー:", error);
-      // エラーが発生しても次のバッチを続行
     }
+  } finally {
+    // 翻訳中マーカーを削除
+    unmarkTargetsAsTranslating(targets);
+    // 翻訳中インジケーターを非表示
+    hideLoadingIndicator();
   }
+}
+
+// 翻訳中表示用のスタイルを追加
+function injectLoadingStyles(): void {
+  if (document.getElementById("translator-loading-styles")) {
+    return; // 既に追加済み
+  }
+
+  const style = document.createElement("style");
+  style.id = "translator-loading-styles";
+  style.textContent = `
+    .translator-loading-indicator {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #4a90e2;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      z-index: 2147483647;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .translator-loading-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: translator-spin 0.8s linear infinite;
+    }
+    @keyframes translator-spin {
+      to { transform: rotate(360deg); }
+    }
+    [data-translating="true"] {
+      position: relative;
+      opacity: 0.6;
+    }
+    [data-translating="true"]::after {
+      content: "翻訳中...";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(74, 144, 226, 0.1);
+      color: #4a90e2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      border: 1px dashed #4a90e2;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 // 原文表示用のスタイルを追加
