@@ -29,14 +29,23 @@ function getBlockLevelParent(element: HTMLElement): HTMLElement | null {
  * 同じブロックレベル要素内のテキストノードをグループ化
  * これにより、<p><span>...</span><em>...</em><span>...</span></p>のような
  * 構造でも、1つの文として翻訳される
+ * スペースのみのテキストノードも含めて、すべてのテキストノードを収集
  */
 function groupTextNodesByParent(root: HTMLElement): Map<HTMLElement, Text[]> {
   const groups = new Map<HTMLElement, Text[]>();
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
-      return isVisibleTextNode(node)
-        ? NodeFilter.FILTER_ACCEPT
-        : NodeFilter.FILTER_REJECT;
+      // 可視テキストノードまたはスペースのみのテキストノードも含める
+      // これにより、要素間のスペースも保持される
+      if (isVisibleTextNode(node)) {
+        return NodeFilter.FILTER_ACCEPT;
+      }
+      // スペースのみのテキストノードも含める（要素間のスペースを保持するため）
+      const text = node.nodeValue;
+      if (text && /^\s+$/.test(text)) {
+        return NodeFilter.FILTER_ACCEPT;
+      }
+      return NodeFilter.FILTER_REJECT;
     },
   });
 
@@ -44,8 +53,8 @@ function groupTextNodesByParent(root: HTMLElement): Map<HTMLElement, Text[]> {
     const node = walker.currentNode as Text;
     const text = node.nodeValue;
 
-    // 句読点のみのテキストは除外
-    if (!text || !/[^\s\u3000.,;:!?、。]/.test(text)) {
+    // 句読点のみのテキストは除外（ただし、スペースのみのテキストは含める）
+    if (!text || (!/[^\s\u3000.,;:!?、。]/.test(text) && !/^\s+$/.test(text))) {
       continue;
     }
 
@@ -96,8 +105,66 @@ export function collectTargets(root: HTMLElement = document.body): TranslationTa
     } else {
       // 複数のテキストノードがある場合は、結合して翻訳
       // 結合されたテキストを取得する関数
+      // テキストノード間のスペースを正確に保持するため、Range APIを使用
       const getCombinedText = (): string => {
-        return textNodes.map(node => node.nodeValue || "").join("");
+        if (textNodes.length === 0) {
+          return "";
+        }
+        
+        // 最初と最後のテキストノードの共通の親要素を取得
+        const firstNode = textNodes[0];
+        const lastNode = textNodes[textNodes.length - 1];
+        const firstParent = firstNode.parentElement;
+        const lastParent = lastNode.parentElement;
+        
+        if (!firstParent || !lastParent) {
+          // フォールバック: テキストノードを結合
+          return textNodes.map(node => node.nodeValue || "").join("");
+        }
+        
+        // 共通の親要素を見つける
+        let commonParent: HTMLElement | null = firstParent;
+        while (commonParent && !commonParent.contains(lastNode)) {
+          commonParent = commonParent.parentElement;
+        }
+        
+        if (!commonParent) {
+          // フォールバック: テキストノードを結合
+          return textNodes.map(node => node.nodeValue || "").join("");
+        }
+        
+        // 共通の親要素内で、最初と最後のテキストノード間のすべてのテキストノードを取得
+        // TreeWalkerを使用して、最初と最後のテキストノード間のすべてのテキストを取得
+        const range = document.createRange();
+        range.setStartBefore(firstNode);
+        range.setEndAfter(lastNode);
+        
+        // Range内のすべてのテキストノードを走査して結合
+        const walker = document.createTreeWalker(
+          range.commonAncestorContainer,
+          NodeFilter.SHOW_TEXT,
+          {
+            acceptNode: (node) => {
+              // Range内のテキストノードのみを取得
+              if (range.intersectsNode(node)) {
+                return NodeFilter.FILTER_ACCEPT;
+              }
+              return NodeFilter.FILTER_REJECT;
+            },
+          }
+        );
+        
+        const allTextNodes: Text[] = [];
+        let currentNode: Node | null = walker.currentNode;
+        while (currentNode) {
+          if (currentNode.nodeType === Node.TEXT_NODE) {
+            allTextNodes.push(currentNode as Text);
+          }
+          currentNode = walker.nextNode();
+        }
+        
+        // すべてのテキストノードを結合（これにより、要素間のスペースも保持される）
+        return allTextNodes.map(node => node.nodeValue || "").join("");
       };
 
       // 翻訳結果を各ノードに分配する関数
