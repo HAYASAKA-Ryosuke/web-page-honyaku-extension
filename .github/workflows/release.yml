@@ -31,11 +31,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build extension
-        run: pnpm build
+      - name: Build Chrome extension
+        run: pnpm build:chrome
 
-      - name: Create ZIP file
-        run: pnpm build:zip
+      - name: Build Firefox extension
+        run: pnpm build:firefox
+
+      - name: Create ZIP files
+        run: |
+          pnpm build:zip:chrome
+          pnpm build:zip:firefox
 
       - name: Get version from tag
         id: get_version
@@ -52,19 +57,25 @@ jobs:
             echo "⚠️ タグが見つかりません。devとして処理します。"
           fi
 
-      - name: Check ZIP file exists
+      - name: Check ZIP files exist
         run: |
           if [ ! -f "extension.zip" ]; then
             echo "❌ extension.zipが見つかりません"
             exit 1
           fi
-          ls -lh extension.zip
+          if [ ! -f "extension-firefox.zip" ]; then
+            echo "❌ extension-firefox.zipが見つかりません"
+            exit 1
+          fi
+          ls -lh extension.zip extension-firefox.zip
           echo "✅ ZIPファイルが存在します"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: extension.zip
+          files: |
+            extension.zip
+            extension-firefox.zip
           tag_name: ${{ steps.get_version.outputs.tag }}
           name: Release ${{ steps.get_version.outputs.version }}
           body: |
@@ -72,12 +83,21 @@ jobs:
 
             ### 📦 インストール方法
 
+            #### Chrome版
             1. `extension.zip`をダウンロード
             2. ZIPファイルを解凍
             3. Chromeで `chrome://extensions/` を開く
             4. 「開発者モード」を有効にする
             5. 「パッケージ化されていない拡張機能を読み込む」をクリック
             6. 解凍したフォルダを選択
+
+            #### Firefox版
+            1. `extension-firefox.zip`をダウンロード
+            2. ZIPファイルを解凍
+            3. Firefoxで `about:debugging` を開く
+            4. 「このFirefox」タブを選択
+            5. 「一時的なアドオンを読み込む」をクリック
+            6. 解凍したフォルダ内の`manifest.json`を選択
 
             ### 📝 変更内容
 
