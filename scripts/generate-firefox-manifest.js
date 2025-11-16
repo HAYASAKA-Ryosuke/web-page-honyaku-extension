@@ -22,8 +22,7 @@ const manifest = {
     default_popup: "src/popup.html"
   },
   background: {
-    service_worker: "assets/background.js",
-    type: "module"
+    scripts: ["assets/background.js"]
   },
   content_scripts: [
     {

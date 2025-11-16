@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       // Chrome用の場合は@crxjs/vite-pluginを使用
       !isFirefox && crx({ manifest }),
-      // Firefox用の場合はpopup.htmlをコピーし、popup.tsのパスを修正するプラグイン
+      // Firefox用の場合はpopup.htmlをコピーし、webextension-polyfillをコピーするプラグイン
       isFirefox && {
         name: "firefox-assets",
         closeBundle() {
@@ -28,13 +28,14 @@ export default defineConfig(({ mode }) => {
           const popupDest = resolve(srcDir, "popup.html");
           if (existsSync(popupSrc)) {
             let popupContent = readFileSync(popupSrc, "utf-8");
-            // popup.tsのパスを修正（assets/popup.jsに変更）
+            // popup.tsのパスを修正（ESモジュール形式なのでtype="module"を維持）
             popupContent = popupContent.replace(
               '<script type="module" src="./popup.ts"></script>',
               '<script type="module" src="../assets/popup.js"></script>'
             );
             writeFileSync(popupDest, popupContent);
           }
+          
         }
       }
     ].filter(Boolean),
@@ -58,8 +59,9 @@ export default defineConfig(({ mode }) => {
           popup: resolve(__dirname, "src/popup.ts"),
         },
         output: {
+          format: "es",
           entryFileNames: "assets/[name].js",
-          chunkFileNames: "assets/[name].js",
+          chunkFileNames: "assets/[name]-[hash].js"
         }
       } : undefined
     }
