@@ -6,7 +6,7 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "skipLibCheck": true,
-    "types": ["chrome-types"]
+    "types": ["chrome-types", "node"]
   },
-  "include": ["src", "manifest.ts"]
+  "include": ["src", "manifest.ts", "vite.config.ts", "scripts"]
 }

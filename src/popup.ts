@@ -1,3 +1,5 @@
+import browser from "webextension-polyfill";
+
 const apiKeyInput = document.getElementById("apiKey") as HTMLInputElement;
 const modelSelect = document.getElementById("model") as HTMLSelectElement;
 const showOriginalCheckbox = document.getElementById("showOriginal") as HTMLInputElement;
@@ -6,7 +8,7 @@ const restoreBtn = document.getElementById("restoreOriginal") as HTMLButtonEleme
 
 // 設定を読み込んで表示
 async function loadConfig() {
-  const result = await chrome.storage.local.get(["claudeApiKey", "claudeModel", "showOriginal"]);
+  const result = await browser.storage.local.get(["claudeApiKey", "claudeModel", "showOriginal"]);
   if (result.claudeApiKey) {
     apiKeyInput.value = result.claudeApiKey as string;
   }
@@ -27,16 +29,16 @@ async function saveConfig(): Promise<void> {
     return;
   }
 
-  await chrome.storage.local.set({
+  await browser.storage.local.set({
     claudeApiKey: apiKey,
     claudeModel: model,
     showOriginal: showOriginalCheckbox.checked,
   });
 
   // コンテンツスクリプトに設定更新を通知
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (tab.id) {
-    chrome.tabs.sendMessage(tab.id, { type: "RELOAD_CONFIG" }).catch(() => {
+    browser.tabs.sendMessage(tab.id, { type: "RELOAD_CONFIG" }).catch(() => {
       // コンテンツスクリプトが読み込まれていない場合は無視
     });
   }
@@ -55,14 +57,14 @@ translateBtn.addEventListener("click", async () => {
   try {
     translateBtn.disabled = true;
     
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (!tab.id) {
       console.error("エラー: タブが見つかりません");
       translateBtn.disabled = false;
       return;
     }
     
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    const response = await browser.tabs.sendMessage(tab.id, {
       type: "TRANSLATE_PAGE",
       targetLang: "ja"
     });
@@ -84,14 +86,14 @@ restoreBtn.addEventListener("click", async () => {
   try {
     restoreBtn.disabled = true;
     
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (!tab.id) {
       console.error("エラー: タブが見つかりません");
       restoreBtn.disabled = false;
       return;
     }
     
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    const response = await browser.tabs.sendMessage(tab.id, {
       type: "RESTORE_ORIGINAL"
     });
     

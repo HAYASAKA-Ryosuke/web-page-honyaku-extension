@@ -1,4 +1,6 @@
-chrome.runtime.onInstalled.addListener(() => {
+import browser from "webextension-polyfill";
+
+browser.runtime.onInstalled.addListener(() => {
   console.log("[bg] installed");
 });
 
@@ -139,7 +141,7 @@ ${combinedText}
 }
 
 // ポップアップ → バックグラウンド間メッセージ
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+browser.runtime.onMessage.addListener((msg: any, _sender: browser.Runtime.MessageSender, sendResponse: (response: any) => void) => {
   if (msg.type === "PING") {
     (sendResponse as (response: any) => void)({ ok: true, now: new Date().toISOString() });
     return false;
@@ -154,7 +156,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           targetLang: msg.targetLang,
         });
 
-        const result = await chrome.storage.local.get(["claudeApiKey", "claudeModel"]);
+        const result = await browser.storage.local.get(["claudeApiKey", "claudeModel"]);
         const apiKey = result.claudeApiKey as string | undefined;
         const model = (result.claudeModel as string) || "claude-haiku-4-5-20251001";
 
@@ -186,13 +188,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return false;
 });
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
+browser.runtime.onInstalled.addListener(() => {
+  browser.contextMenus.create({
     id: "translateSelection",
     title: "選択テキストを翻訳",
     contexts: ["selection"]
   });
-  chrome.contextMenus.create({
+  browser.contextMenus.create({
     id: "translatePageInline",
     title: "ページ全体を翻訳",
     contexts: ["page"]
@@ -200,31 +202,31 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+browser.contextMenus.onClicked.addListener(async (info: browser.Menus.OnClickData, tab?: browser.Tabs.Tab) => {
   if (tab?.id) {
-    await chrome.action.setBadgeText({ text: "✓" });
-    setTimeout(() => chrome.action.setBadgeText({ text: "" }), 600);
+    await browser.action.setBadgeText({ text: "✓" });
+    setTimeout(() => browser.action.setBadgeText({ text: "" }), 600);
   }
   
   if (info.menuItemId === 'translateSelection') {
     if (tab?.id) {
       try {
-        await chrome.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
-        const response = await chrome.tabs.sendMessage(tab.id, {
+        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
+        const response = await browser.tabs.sendMessage(tab.id, {
           type: "TRANSLATE_SELECTION",
           targetLang: "ja"
         });
         if (response?.success) {
-          await chrome.action.setBadgeText({ tabId: tab.id, text: "✓" });
-          setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
         } else {
-          await chrome.action.setBadgeText({ tabId: tab.id, text: "✗" });
-          setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
         }
       } catch (error) {
         console.error("翻訳エラー:", error);
-        await chrome.action.setBadgeText({ tabId: tab.id, text: "✗" });
-        setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
       }
     }
   }
@@ -232,22 +234,22 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'translatePageInline') {
     if (tab?.id) {
       try {
-        await chrome.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
-        const response = await chrome.tabs.sendMessage(tab.id, {
+        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
+        const response = await browser.tabs.sendMessage(tab.id, {
           type: "TRANSLATE_PAGE",
           targetLang: "ja"
         });
         if (response?.success) {
-          await chrome.action.setBadgeText({ tabId: tab.id, text: "✓" });
-          setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
         } else {
-          await chrome.action.setBadgeText({ tabId: tab.id, text: "✗" });
-          setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
         }
       } catch (error) {
         console.error("翻訳エラー:", error);
-        await chrome.action.setBadgeText({ tabId: tab.id, text: "✗" });
-        setTimeout(() => chrome.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
       }
     }
   }

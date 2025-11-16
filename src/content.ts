@@ -1,4 +1,5 @@
 // ====== 初期化とメッセージハンドラー ======
+import browser from "webextension-polyfill";
 import { state, initializeConfig, loadShowOriginalSetting } from "./state";
 import { translatePage } from "./translate-page";
 import { translateSelection } from "./translate-selection";
@@ -7,10 +8,10 @@ import { locateTargetByKey } from "./node-locator";
 import { addOriginalTooltip } from "./tooltip";
 
 // バックグラウンドスクリプトからのメッセージを受信
-chrome.runtime.onMessage.addListener(
+browser.runtime.onMessage.addListener(
   (
     msg: { type: string; targetLang?: string },
-    _sender: chrome.runtime.MessageSender,
+    _sender: browser.Runtime.MessageSender,
     sendResponse: (response: { success: boolean; message: string }) => void
   ) => {
     if (msg.type === "TRANSLATE_PAGE") {

@@ -1,4 +1,5 @@
 // ====== 状態管理クラス ======
+import browser from "webextension-polyfill";
 import type { TranslatorConfig, TranslationState } from "./types";
 import { createClaudeProvider } from "./provider";
 
@@ -61,7 +62,7 @@ export class TranslatorState {
    * 原文表示の設定を読み込む
    */
   public async loadShowOriginalSetting(): Promise<void> {
-    const result = await chrome.storage.local.get(["showOriginal"]);
+    const result = await browser.storage.local.get(["showOriginal"]);
     this._showOriginal = result.showOriginal !== false; // デフォルトはtrue
   }
 

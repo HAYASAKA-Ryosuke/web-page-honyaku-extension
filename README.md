@@ -1,6 +1,6 @@
 # Web Page Honyaku Extension
 
-ウェブページを翻訳するためのChrome拡張です
+ウェブページを翻訳するためのChrome/Firefox拡張です
 
 ## 機能
 - ページ全体の翻訳
@@ -24,6 +24,8 @@ GitHub Actionsで自動ビルドされたリリースからインストールで
 
 ### 方法2: ソースコードからビルド
 
+#### Chrome用のビルド
+
 ```bash
 # リポジトリをクローン
 git clone https://github.com/HAYASAKA-Ryosuke/web-page-honyaku-extension.git
@@ -32,8 +34,8 @@ cd web-page-honyaku-extension
 # 依存関係のインストール
 pnpm install
 
-# ビルド
-pnpm build
+# Chrome用のビルド
+pnpm build:chrome
 
 # ビルドしたdistフォルダが生成されます
 # Chromeで chrome://extensions/ を開き、
@@ -41,10 +43,25 @@ pnpm build
 # distフォルダを選択してください
 ```
 
+#### Firefox用のビルド
+
+```bash
+# 依存関係のインストール
+pnpm install
+
+# Firefox用のビルド
+pnpm build:firefox
+
+# ビルドしたdist-firefoxフォルダが生成されます
+# Firefoxで about:debugging を開き、
+# 「このFirefox」タブを選択して「一時的なアドオンを読み込む」をクリック
+# dist-firefoxフォルダ内のmanifest.jsonを選択してください
+```
+
 ### APIキーの取り扱い
 
-**このChrome拡張ではClaude APIのキーが必要です**
-- **APIキーはローカルストレージに保存されます** - `chrome.storage.local`を使用して、ユーザーのデバイスにのみ保存されます
+**この拡張機能ではClaude APIのキーが必要です**
+- **APIキーはローカルストレージに保存されます** - ブラウザのストレージAPIを使用して、ユーザーのデバイスにのみ保存されます
 - **APIキーは外部に送信されません** - APIキーはAnthropicのAPIサーバーにのみ送信され、他のサーバーには送信されません｡
 
 ### 使用方法
@@ -68,8 +85,17 @@ pnpm install
 # 開発サーバーの起動
 pnpm dev
 
-# ビルド
-pnpm build
+# ビルド（Chrome用）
+pnpm build:chrome
+
+# ビルド（Firefox用）
+pnpm build:firefox
+
+# ZIPファイルの作成（Chrome用）
+pnpm build:zip:chrome
+
+# ZIPファイルの作成（Firefox用）
+pnpm build:zip:firefox
 ```
 
 ### ライセンス

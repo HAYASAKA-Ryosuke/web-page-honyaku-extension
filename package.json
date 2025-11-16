@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:chrome": "vite build --mode chrome",
+    "build:firefox": "vite build --mode firefox && node scripts/generate-firefox-manifest.js",
     "build:zip": "vite build && node scripts/build-zip.js",
+    "build:zip:chrome": "vite build --mode chrome && node scripts/build-zip.js chrome",
+    "build:zip:firefox": "vite build --mode firefox && node scripts/generate-firefox-manifest.js && node scripts/build-zip.js firefox",
     "dev": "vite",
     "preview": "vite preview",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx --fix"
@@ -18,8 +22,13 @@
     "node": ">=18.0.0",
     "pnpm": ">=10.0.0"
   },
+  "dependencies": {
+    "webextension-polyfill": "^0.12.0"
+  },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.2.1",
+    "@types/node": "^20.0.0",
+    "@types/webextension-polyfill": "^0.10.8",
     "chrome-types": "^0.1.384",
     "typescript": "^5.9.3",
     "vite": "^7.1.12"

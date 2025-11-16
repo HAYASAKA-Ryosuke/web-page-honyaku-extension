@@ -1,4 +1,5 @@
 // ====== 翻訳プロバイダー ======
+import browser from "webextension-polyfill";
 import type { TranslationProvider } from "./types";
 
 /**
@@ -62,16 +63,8 @@ export function createClaudeProvider(): TranslationProvider {
           targetLang,
         };
 
-        (chrome.runtime.sendMessage as any)(
-          message,
-          (response: { success?: boolean; translations?: string[]; error?: string } | undefined) => {
-            const lastError = (chrome.runtime as any).lastError;
-            if (lastError) {
-              console.error("[Translator] メッセージ送信エラー:", lastError);
-              reject(new Error(lastError.message));
-              return;
-            }
-
+        browser.runtime.sendMessage(message)
+          .then((response: { success?: boolean; translations?: string[]; error?: string } | undefined) => {
             if (response?.success && response.translations) {
               console.log("[Translator] 翻訳成功:", {
                 translationCount: response.translations.length,
@@ -81,8 +74,11 @@ export function createClaudeProvider(): TranslationProvider {
               console.error("[Translator] 翻訳失敗:", response?.error);
               reject(new Error(response?.error || "翻訳に失敗しました"));
             }
-          }
-        );
+          })
+          .catch((error: Error) => {
+            console.error("[Translator] メッセージ送信エラー:", error);
+            reject(error);
+          });
       });
     },
   };

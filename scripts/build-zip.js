@@ -6,17 +6,18 @@ import { existsSync, statSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
-const DIST_DIR = join(process.cwd(), "dist");
-const OUTPUT_FILE = join(process.cwd(), "extension.zip");
+const browser = process.argv[2] || "chrome";
+const DIST_DIR = join(process.cwd(), browser === "firefox" ? "dist-firefox" : "dist");
+const OUTPUT_FILE = join(process.cwd(), browser === "firefox" ? "extension-firefox.zip" : "extension.zip");
 
 function buildZip() {
   // distフォルダが存在するか確認
   if (!existsSync(DIST_DIR)) {
-    console.error("❌ distフォルダが見つかりません。先に `pnpm build` を実行してください。");
+    console.error(`❌ ${DIST_DIR}フォルダが見つかりません。先にビルドを実行してください。`);
     process.exit(1);
   }
 
-  console.log("📦 拡張機能をZIPファイルにパッケージ化しています...");
+  console.log(`📦 ${browser === "firefox" ? "Firefox" : "Chrome"}拡張機能をZIPファイルにパッケージ化しています...`);
 
   try {
     // 既存のZIPファイルを削除
@@ -30,7 +31,7 @@ function buildZip() {
     // -9: 最高圧縮
     // -X: 追加のメタデータを除外
     execSync(
-      `cd "${DIST_DIR}" && zip -r -q -9 -X "../extension.zip" .`,
+      `cd "${DIST_DIR}" && zip -r -q -9 -X "../${browser === "firefox" ? "extension-firefox.zip" : "extension.zip"}" .`,
       { stdio: 'inherit' }
     );
 
