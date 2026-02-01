@@ -233,7 +233,8 @@ export function hideLoadingIndicator(): void {
  * 翻訳対象に翻訳中マーカーを追加
  */
 // 翻訳中の要素を追跡（重複を防ぐため）
-const translatingElements = new Set<HTMLElement>();
+// WeakSet を使用して、DOM から削除された要素を自動的にガベージコレクション
+const translatingElements = new WeakSet<HTMLElement>();
 
 export function markTargetsAsTranslating(targets: TranslationTarget[]): void {
   for (const target of targets) {

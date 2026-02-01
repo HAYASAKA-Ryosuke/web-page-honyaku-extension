@@ -12,7 +12,6 @@ import { setSavedSelection } from "./saved-selection";
 function saveCurrentSelection() {
   const sel = window.getSelection();
   const text = sel?.toString()?.trim() ?? "";
-  console.log("[content.ts] 選択保存, テキスト:", text.substring(0, 50), "長さ:", text.length);
   if (sel && text.length > 0) {
     setSavedSelection(sel);
   }

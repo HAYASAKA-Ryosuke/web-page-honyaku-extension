@@ -1,9 +1,5 @@
 import browser from "webextension-polyfill";
 
-browser.runtime.onInstalled.addListener(() => {
-  console.log("[bg] installed");
-});
-
 // Claude APIを呼び出す関数
 async function callClaudeAPI(
   texts: string[],
@@ -267,177 +263,61 @@ function createContextMenus(): void {
 createContextMenus();
 
 browser.runtime.onInstalled.addListener(() => {
+  console.log("[bg] installed");
   createContextMenus();
 });
 
+/** コンテキストメニューアクションを実行するヘルパー関数 */
+async function handleMenuAction(
+  tabId: number,
+  message: { type: string; targetLang?: string; selectionText?: string }
+): Promise<void> {
+  try {
+    await browser.action.setBadgeText({ tabId, text: "..." });
+    const response = await browser.tabs.sendMessage(tabId, message) as { success?: boolean } | undefined;
+    const badgeText = response?.success ? "✓" : "✗";
+    await browser.action.setBadgeText({ tabId, text: badgeText });
+    setTimeout(() => browser.action.setBadgeText({ tabId, text: "" }), 2000);
+  } catch (error) {
+    console.error("翻訳エラー:", error);
+    await browser.action.setBadgeText({ tabId, text: "✗" });
+    setTimeout(() => browser.action.setBadgeText({ tabId, text: "" }), 2000);
+  }
+}
+
+/** メニューIDとメッセージのマッピング */
+type MenuActionConfig = {
+  type: string;
+  targetLang?: string;
+  includeSelectionText?: boolean;
+};
+
+const menuActionMap: Record<string, MenuActionConfig> = {
+  translateSelection: { type: "TRANSLATE_SELECTION", targetLang: "ja" },
+  translateSelectionToEnglish: { type: "TRANSLATE_SELECTION_TO_ENGLISH", includeSelectionText: true },
+  translatePageInline: { type: "TRANSLATE_PAGE", targetLang: "ja" },
+  translateClipboard: { type: "TRANSLATE_CLIPBOARD", targetLang: "ja" },
+  translateClipboardToEnglish: { type: "TRANSLATE_CLIPBOARD", targetLang: "en" },
+  translateSelectionOverlay: { type: "TRANSLATE_SELECTION_OVERLAY", targetLang: "ja", includeSelectionText: true },
+  translateSelectionOverlayToEnglish: { type: "TRANSLATE_SELECTION_OVERLAY", targetLang: "en", includeSelectionText: true },
+};
 
 browser.contextMenus.onClicked.addListener(async (info: browser.Menus.OnClickData, tab?: browser.Tabs.Tab) => {
-  if (tab?.id) {
-    await browser.action.setBadgeText({ text: "✓" });
-    setTimeout(() => browser.action.setBadgeText({ text: "" }), 600);
-  }
+  if (!tab?.id) return;
+
+  const menuId = String(info.menuItemId);
+  const config = menuActionMap[menuId];
   
-  if (info.menuItemId === 'translateSelection') {
-    if (tab?.id) {
-      try {
-        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
-        const response = await browser.tabs.sendMessage(tab.id, {
-          type: "TRANSLATE_SELECTION",
-          targetLang: "ja"
-        });
-        if (response?.success) {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        } else {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        }
-      } catch (error) {
-        console.error("翻訳エラー:", error);
-        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-      }
+  if (config) {
+    const message: { type: string; targetLang?: string; selectionText?: string } = {
+      type: config.type,
+    };
+    if (config.targetLang) {
+      message.targetLang = config.targetLang;
     }
-  }
-
-  if (info.menuItemId === 'translateSelectionToEnglish') {
-    if (tab?.id) {
-      try {
-        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
-        const response = await browser.tabs.sendMessage(tab.id, {
-          type: "TRANSLATE_SELECTION_TO_ENGLISH",
-          selectionText: info.selectionText
-        });
-        if (response?.success) {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        } else {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        }
-      } catch (error) {
-        console.error("翻訳エラー:", error);
-        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-      }
+    if (config.includeSelectionText) {
+      message.selectionText = info.selectionText;
     }
-  }
-  
-  if (info.menuItemId === 'translatePageInline') {
-    if (tab?.id) {
-      try {
-        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
-        const response = await browser.tabs.sendMessage(tab.id, {
-          type: "TRANSLATE_PAGE",
-          targetLang: "ja"
-        });
-        if (response?.success) {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        } else {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        }
-      } catch (error) {
-        console.error("翻訳エラー:", error);
-        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-      }
-    }
-  }
-
-  if (info.menuItemId === 'translateClipboard') {
-    if (tab?.id) {
-      try {
-        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
-        const response = await browser.tabs.sendMessage(tab.id, {
-          type: "TRANSLATE_CLIPBOARD",
-          targetLang: "ja"
-        });
-        if (response?.success) {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        } else {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        }
-      } catch (error) {
-        console.error("翻訳エラー:", error);
-        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-      }
-    }
-  }
-
-  if (info.menuItemId === 'translateClipboardToEnglish') {
-    if (tab?.id) {
-      try {
-        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
-        const response = await browser.tabs.sendMessage(tab.id, {
-          type: "TRANSLATE_CLIPBOARD",
-          targetLang: "en"
-        });
-        if (response?.success) {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        } else {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        }
-      } catch (error) {
-        console.error("翻訳エラー:", error);
-        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-      }
-    }
-  }
-
-  // オーバーレイ表示（Google Chat等の複雑なDOM用）
-  if (info.menuItemId === 'translateSelectionOverlay') {
-    if (tab?.id) {
-      try {
-        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
-        const response = await browser.tabs.sendMessage(tab.id, {
-          type: "TRANSLATE_SELECTION_OVERLAY",
-          targetLang: "ja",
-          selectionText: info.selectionText // ブラウザが取得した選択テキストを渡す
-        });
-        if (response?.success) {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        } else {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        }
-      } catch (error) {
-        console.error("翻訳エラー:", error);
-        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-      }
-    }
-  }
-
-  if (info.menuItemId === 'translateSelectionOverlayToEnglish') {
-    if (tab?.id) {
-      try {
-        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
-        const response = await browser.tabs.sendMessage(tab.id, {
-          type: "TRANSLATE_SELECTION_OVERLAY",
-          targetLang: "en",
-          selectionText: info.selectionText
-        });
-        if (response?.success) {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        } else {
-          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-        }
-      } catch (error) {
-        console.error("翻訳エラー:", error);
-        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
-        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
-      }
-    }
+    await handleMenuAction(tab.id, message);
   }
 });

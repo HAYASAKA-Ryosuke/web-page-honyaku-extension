@@ -349,10 +349,10 @@ function showTranslationResultOverlay(original: string, translation: string, tar
     try {
       await navigator.clipboard.writeText(translation);
       copyBtn.textContent = "コピーしました！";
-      copyBtn.style.background = "#2e7d32 !important";
+      copyBtn.style.setProperty("background", "#2e7d32", "important");
       setTimeout(() => {
         copyBtn.textContent = "クリップボードにコピー";
-        copyBtn.style.background = "#4a90e2 !important";
+        copyBtn.style.setProperty("background", "#4a90e2", "important");
       }, 1500);
     } catch {
       copyBtn.textContent = "コピーに失敗しました";
@@ -415,7 +415,6 @@ export async function translateSelectionToOverlay(targetLang: string = "ja", bro
   // 1. ブラウザから渡された選択テキストを優先
   if (browserSelectionText && browserSelectionText.trim().length > 0) {
     selectedText = browserSelectionText.trim();
-    console.log("[translateSelectionToOverlay] ブラウザから取得:", selectedText.substring(0, 50));
   }
   
   // 2. 次に、右クリック時に保存した選択を使用
@@ -423,7 +422,6 @@ export async function translateSelectionToOverlay(targetLang: string = "ja", bro
     const saved = getAndClearSavedSelection();
     if (saved?.text) {
       selectedText = saved.text;
-      console.log("[translateSelectionToOverlay] saved:", selectedText.substring(0, 50));
     }
   }
   
@@ -432,12 +430,10 @@ export async function translateSelectionToOverlay(targetLang: string = "ja", bro
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
       selectedText = selection.toString().trim();
-      console.log("[translateSelectionToOverlay] 現在の選択:", selectedText.substring(0, 50));
     }
   }
 
   if (!selectedText || selectedText.length < state.config.minTextLen) {
-    console.log("[translateSelectionToOverlay] テキストなし, minTextLen:", state.config.minTextLen);
     showErrorMessage("テキストが選択されていません", "翻訳したいテキストを選択してください");
     return;
   }
