@@ -1,0 +1,27 @@
+---
+description: Project-specific conventions for translator-mailer-chrome-ext
+globs: ["**/*"]
+---
+
+# Project Conventions
+
+## Package Manager
+- Use `pnpm` (not npm or yarn)
+- Build: `pnpm run build`
+- Install: `pnpm install`
+
+## Tech Stack
+- Browser Extension (Chrome + Firefox)
+- TypeScript
+- Vite with @crxjs/vite-plugin
+- webextension-polyfill for cross-browser compatibility
+
+## Build Outputs
+- Chrome: `release/` directory
+- Firefox: `dist-firefox/` directory (via `pnpm run build:firefox`)
+
+## Architecture
+- `src/background.ts` - Service worker / background script
+- `src/content.ts` - Content script injected into pages
+- `src/popup.ts` / `src/popup.html` - Extension popup UI
+- Translation via Claude API (Anthropic)

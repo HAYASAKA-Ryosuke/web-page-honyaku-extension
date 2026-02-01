@@ -12,7 +12,9 @@
     "build:zip:firefox": "node scripts/build-firefox.js && node scripts/generate-firefox-manifest.js && node scripts/build-zip.js firefox",
     "dev": "vite",
     "preview": "vite preview",
-    "lint": "eslint . --ext .ts,.tsx,.js,.jsx --fix"
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -31,7 +33,9 @@
     "@types/webextension-polyfill": "^0.12.4",
     "chrome-types": "^0.1.384",
     "esbuild": "^0.24.0",
+    "jsdom": "^26.0.0",
     "typescript": "^5.9.3",
-    "vite": "^7.1.12"
+    "vite": "^7.1.12",
+    "vitest": "^3.0.0"
   }
 }
