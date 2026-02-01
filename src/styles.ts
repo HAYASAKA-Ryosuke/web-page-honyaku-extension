@@ -35,6 +35,9 @@ export function injectLoadingStyles(): void {
     .translator-loading-indicator.warning {
       background: #ff9800;
     }
+    .translator-loading-indicator.success {
+      background: #2e7d32;
+    }
     .translator-error-message {
       margin-top: 8px;
       font-size: 12px;
@@ -73,6 +76,69 @@ export function injectLoadingStyles(): void {
       border: 1px dashed #4a90e2;
       border-radius: 4px;
       pointer-events: none;
+    }
+    .translator-clipboard-overlay {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      z-index: 2147483647;
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 90vw;
+      width: 420px;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #e0e0e0;
+    }
+    .translator-clipboard-overlay-title {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #4a90e2;
+      border-bottom: 1px solid #eee;
+    }
+    .translator-clipboard-overlay-body {
+      padding: 16px;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .translator-clipboard-overlay-actions {
+      padding: 12px 16px;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .translator-clipboard-overlay-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+    }
+    .translator-clipboard-overlay-btn-copy {
+      background: #4a90e2;
+      color: white;
+    }
+    .translator-clipboard-overlay-btn-copy:hover {
+      background: #357abd;
+    }
+    .translator-clipboard-overlay-btn-close {
+      background: #f0f0f0;
+      color: #333;
+    }
+    .translator-clipboard-overlay-btn-close:hover {
+      background: #e0e0e0;
     }
   `;
   document.head.appendChild(style);

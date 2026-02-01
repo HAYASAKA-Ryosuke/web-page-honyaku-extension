@@ -2,15 +2,47 @@
 import browser from "webextension-polyfill";
 import { state, initializeConfig, loadShowOriginalSetting } from "./state";
 import { translatePage } from "./translate-page";
-import { translateSelection } from "./translate-selection";
+import { translateSelection, translateClipboard, translateSelectionToEnglish, translateSelectionToOverlay } from "./translate-selection";
 import { restoreOriginal } from "./restore";
 import { locateTargetByKey } from "./node-locator";
 import { addOriginalTooltip } from "./tooltip";
+import { setSavedSelection } from "./saved-selection";
+
+// 右クリック押下時点で選択範囲を保存（contextmenu では選択が消えていることがあるため mousedown/contextmenu で取得）
+function saveCurrentSelection() {
+  const sel = window.getSelection();
+  const text = sel?.toString()?.trim() ?? "";
+  console.log("[content.ts] 選択保存, テキスト:", text.substring(0, 50), "長さ:", text.length);
+  if (sel && text.length > 0) {
+    setSavedSelection(sel);
+  }
+}
+
+document.addEventListener("mousedown", (e: MouseEvent) => {
+  if (e.button === 2) {
+    saveCurrentSelection();
+  }
+}, true);
+
+document.addEventListener("contextmenu", () => {
+  saveCurrentSelection();
+}, true);
+
+// selectionchange イベントで選択が変わるたびに保存（Google Chat等のSPA対策）
+let lastSelectionText = "";
+document.addEventListener("selectionchange", () => {
+  const sel = window.getSelection();
+  const text = sel?.toString()?.trim() ?? "";
+  if (text.length > 0 && text !== lastSelectionText) {
+    lastSelectionText = text;
+    if (sel) setSavedSelection(sel);
+  }
+});
 
 // バックグラウンドスクリプトからのメッセージを受信
 browser.runtime.onMessage.addListener(
   (
-    msg: { type: string; targetLang?: string },
+    msg: { type: string; targetLang?: string; selectionText?: string },
     _sender: browser.Runtime.MessageSender,
     sendResponse: (response: { success: boolean; message: string }) => void
   ) => {
@@ -44,6 +76,56 @@ browser.runtime.onMessage.addListener(
           });
         });
       return true; // 非同期レスポンスを許可
+    }
+
+    if (msg.type === "TRANSLATE_CLIPBOARD") {
+      const targetLang = msg.targetLang || "ja";
+      translateClipboard(targetLang)
+        .then((success) => {
+          sendResponse({
+            success,
+            message: success ? "クリップボードの翻訳が完了しました" : "クリップボードにテキストがありません",
+          });
+        })
+        .catch((error: Error) => {
+          console.error("翻訳エラー:", error);
+          sendResponse({
+            success: false,
+            message: `翻訳エラー: ${error.message}`,
+          });
+        });
+      return true;
+    }
+
+    if (msg.type === "TRANSLATE_SELECTION_TO_ENGLISH") {
+      translateSelectionToEnglish(msg.selectionText)
+        .then(() => {
+          sendResponse({ success: true, message: "選択テキストの英訳が完了しました" });
+        })
+        .catch((error: Error) => {
+          console.error("翻訳エラー:", error);
+          sendResponse({
+            success: false,
+            message: `翻訳エラー: ${error.message}`,
+          });
+        });
+      return true;
+    }
+
+    if (msg.type === "TRANSLATE_SELECTION_OVERLAY") {
+      const targetLang = msg.targetLang || "ja";
+      translateSelectionToOverlay(targetLang, msg.selectionText)
+        .then(() => {
+          sendResponse({ success: true, message: "選択テキストの翻訳が完了しました" });
+        })
+        .catch((error: Error) => {
+          console.error("翻訳エラー:", error);
+          sendResponse({
+            success: false,
+            message: `翻訳エラー: ${error.message}`,
+          });
+        });
+      return true;
     }
 
     if (msg.type === "RESTORE_ORIGINAL") {

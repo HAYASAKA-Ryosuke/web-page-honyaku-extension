@@ -4,6 +4,11 @@ const apiKeyInput = document.getElementById("apiKey") as HTMLInputElement;
 const modelSelect = document.getElementById("model") as HTMLSelectElement;
 const showOriginalCheckbox = document.getElementById("showOriginal") as HTMLInputElement;
 const translateBtn = document.getElementById("translatePage") as HTMLButtonElement;
+const translateClipboardBtn = document.getElementById("translateClipboard") as HTMLButtonElement;
+const translateClipboardToEnglishBtn = document.getElementById("translateClipboardToEnglish") as HTMLButtonElement;
+const clipboardResultRow = document.getElementById("clipboardResultRow") as HTMLDivElement;
+const clipboardResult = document.getElementById("clipboardResult") as HTMLDivElement;
+const copyResultBtn = document.getElementById("copyResult") as HTMLButtonElement;
 const restoreBtn = document.getElementById("restoreOriginal") as HTMLButtonElement;
 
 // 設定を読み込んで表示
@@ -49,8 +54,22 @@ apiKeyInput.addEventListener("blur", saveConfig);
 modelSelect.addEventListener("change", saveConfig);
 showOriginalCheckbox.addEventListener("change", saveConfig);
 
-// 初期化時に設定を読み込む
-loadConfig();
+// クリップボード翻訳結果をポップアップに表示
+function showClipboardTranslation(translation: string): void {
+  clipboardResult.textContent = translation;
+  clipboardResultRow.style.display = "block";
+}
+
+// 初期化時に設定を読み込む & 保存済みのクリップボード翻訳結果を表示
+async function init() {
+  await loadConfig();
+  const result = await browser.storage.local.get(["lastClipboardTranslation"]);
+  const data = result.lastClipboardTranslation as { translation: string } | undefined;
+  if (data?.translation) {
+    showClipboardTranslation(data.translation);
+  }
+}
+init();
 
 // ページ全体を翻訳
 translateBtn.addEventListener("click", async () => {
@@ -78,6 +97,56 @@ translateBtn.addEventListener("click", async () => {
     console.error("翻訳エラー:", error);
   } finally {
     translateBtn.disabled = false;
+  }
+});
+
+// クリップボードを翻訳する共通関数
+async function translateClipboardWithLang(targetLang: string, btn: HTMLButtonElement): Promise<void> {
+  try {
+    btn.disabled = true;
+    const text = await navigator.clipboard.readText();
+    const trimmed = text?.trim() ?? "";
+    if (!trimmed) {
+      clipboardResult.textContent = "クリップボードにテキストがありません。";
+      clipboardResultRow.style.display = "block";
+      btn.disabled = false;
+      return;
+    }
+    const response = await browser.runtime.sendMessage({
+      type: "TRANSLATE_TEXTS",
+      texts: [trimmed],
+      targetLang,
+    });
+    if (response?.success && response.translations?.length > 0) {
+      showClipboardTranslation(response.translations[0]);
+    } else {
+      clipboardResult.textContent = response?.error ?? "翻訳に失敗しました";
+      clipboardResultRow.style.display = "block";
+    }
+  } catch (error) {
+    clipboardResult.textContent = error instanceof Error ? error.message : "翻訳に失敗しました";
+    clipboardResultRow.style.display = "block";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// クリップボードを日本語に翻訳
+translateClipboardBtn.addEventListener("click", () => translateClipboardWithLang("ja", translateClipboardBtn));
+
+// クリップボードを英語に翻訳
+translateClipboardToEnglishBtn.addEventListener("click", () => translateClipboardWithLang("en", translateClipboardToEnglishBtn));
+
+// 翻訳結果をクリップボードにコピー
+copyResultBtn.addEventListener("click", async () => {
+  const text = clipboardResult.textContent;
+  if (text) {
+    await navigator.clipboard.writeText(text);
+    const originalText = copyResultBtn.textContent;
+    copyResultBtn.textContent = "コピーしました！";
+    setTimeout(() => {
+      copyResultBtn.textContent = originalText;
+    }, 1500);
   }
 });
 

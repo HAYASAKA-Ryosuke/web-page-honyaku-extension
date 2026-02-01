@@ -77,6 +77,145 @@ export function showErrorMessage(message: string, details?: string): void {
 }
 
 /**
+ * 成功メッセージを表示（ポップアップで確認するよう促すなど）
+ * インラインスタイルを使用して、どのサイトでも確実に表示されるようにする
+ */
+export function showSuccessMessage(message: string, details?: string): void {
+  // 既存の通知を削除
+  const existing = document.getElementById("translator-success-toast");
+  if (existing) existing.remove();
+
+  const toast = document.createElement("div");
+  toast.id = "translator-success-toast";
+  toast.style.cssText = `
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    background: #2e7d32 !important;
+    color: white !important;
+    padding: 12px 20px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+    z-index: 2147483647 !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    font-family: system-ui, -apple-system, sans-serif !important;
+    max-width: 400px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    animation: translator-toast-in 0.3s ease-out !important;
+  `;
+
+  // アニメーション用スタイルを追加
+  if (!document.getElementById("translator-toast-animation")) {
+    const animStyle = document.createElement("style");
+    animStyle.id = "translator-toast-animation";
+    animStyle.textContent = `
+      @keyframes translator-toast-in {
+        from { opacity: 0; transform: translateX(100px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+    `;
+    document.head.appendChild(animStyle);
+  }
+
+  const header = document.createElement("div");
+  header.style.cssText = "display: flex !important; align-items: center !important; gap: 8px !important;";
+  
+  const icon = document.createElement("span");
+  icon.textContent = "✓";
+  icon.style.cssText = "font-size: 18px !important;";
+
+  const text = document.createElement("span");
+  text.textContent = message;
+
+  header.appendChild(icon);
+  header.appendChild(text);
+  toast.appendChild(header);
+
+  if (details) {
+    const detailEl = document.createElement("div");
+    detailEl.style.cssText = "font-size: 12px !important; opacity: 0.9 !important; margin-left: 26px !important;";
+    detailEl.textContent = details;
+    toast.appendChild(detailEl);
+  }
+
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    if (toast && toast.parentNode) {
+      toast.remove();
+    }
+  }, 3000);
+}
+
+/**
+ * クリップボード翻訳の結果をオーバーレイで表示（未使用・ポップアップ表示に変更済み）
+ */
+export function showTranslationOverlay(translation: string): void {
+  injectLoadingStyles();
+
+  const existing = document.getElementById("translator-clipboard-overlay");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "translator-clipboard-overlay";
+  overlay.className = "translator-clipboard-overlay";
+
+  const title = document.createElement("div");
+  title.className = "translator-clipboard-overlay-title";
+  title.textContent = "クリップボードの翻訳結果";
+
+  const body = document.createElement("div");
+  body.className = "translator-clipboard-overlay-body";
+  body.textContent = translation;
+
+  const actions = document.createElement("div");
+  actions.className = "translator-clipboard-overlay-actions";
+
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "translator-clipboard-overlay-btn translator-clipboard-overlay-btn-copy";
+  copyBtn.textContent = "クリップボードにコピー";
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(translation);
+      copyBtn.textContent = "コピーしました";
+      copyBtn.disabled = true;
+      setTimeout(() => {
+        copyBtn.textContent = "クリップボードにコピー";
+        copyBtn.disabled = false;
+      }, 1500);
+    } catch {
+      copyBtn.textContent = "コピーに失敗しました";
+    }
+  });
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "translator-clipboard-overlay-btn translator-clipboard-overlay-btn-close";
+  closeBtn.textContent = "閉じる";
+  closeBtn.addEventListener("click", () => overlay.remove());
+
+  actions.appendChild(copyBtn);
+  actions.appendChild(closeBtn);
+
+  overlay.appendChild(title);
+  overlay.appendChild(body);
+  overlay.appendChild(actions);
+
+  const backdrop = document.createElement("div");
+  backdrop.style.cssText =
+    "position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:2147483646;";
+  backdrop.addEventListener("click", () => {
+    overlay.remove();
+    backdrop.remove();
+  });
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(overlay);
+}
+
+/**
  * 翻訳中インジケーターを非表示
  * エラー表示の場合は削除しない
  */

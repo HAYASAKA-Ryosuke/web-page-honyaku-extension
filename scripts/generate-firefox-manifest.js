@@ -31,7 +31,7 @@ const manifest = {
       run_at: "document_idle"
     }
   ],
-  permissions: ["storage", "contextMenus", "activeTab"],
+  permissions: ["storage", "contextMenus", "activeTab", "clipboardRead", "clipboardWrite"],
   host_permissions: ["https://api.anthropic.com/*"],
   browser_specific_settings: {
     gecko: {

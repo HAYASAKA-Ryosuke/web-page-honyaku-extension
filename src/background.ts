@@ -16,7 +16,31 @@ async function callClaudeAPI(
     .map((text, index) => `${index + 1}. ${text}`)
     .join("\n");
 
-  const prompt = `以下の英語テキストを自然な日本語に翻訳してください。
+  // 翻訳方向に応じてプロンプトを切り替え
+  const prompt = targetLang === "en" 
+    ? `以下の日本語テキストを自然な英語に翻訳してください。
+
+条件:
+- 直訳ではなく、自然な英語として意味の流れを再構成すること
+- 文脈に応じて適切なトーン（フォーマル/カジュアル）を選択する
+- チャットやメッセージの場合は、簡潔で自然な表現を優先する
+- 専門用語は正確に訳す
+- 冗長な表現を避け、明確で分かりやすい英語にする
+- 日本語特有の曖昧な表現は、文脈から意図を汲み取って明確に訳す
+
+重要:
+- フィンガープリント、ハッシュ値、UUID、ID、コード、URL、メールアドレス、数値のみのテキストなど、翻訳すべきではないテキストの場合は、元のテキストをそのまま返してください
+- 翻訳すべきかどうか判断に迷う場合は、元のテキストをそのまま返してください
+
+形式:
+- 元の番号を保持して、番号付きリストで返す
+- 翻訳結果のみを返す（説明不要）
+- 翻訳すべきではないテキストは元のテキストをそのまま返す
+
+テキスト:
+${combinedText}
+  `
+    : `以下の英語テキストを自然な日本語に翻訳してください。
 
 条件:
 - 直訳ではなく、自然な日本語として意味の流れを再構成すること
@@ -185,20 +209,65 @@ browser.runtime.onMessage.addListener((msg: any, _sender: browser.Runtime.Messag
     return true; // 非同期レスポンスを許可
   }
 
+  // クリップボード翻訳結果を保存（コンテンツスクリプトから。ポップアップで表示するため）
+  if (msg.type === "STORE_CLIPBOARD_TRANSLATION") {
+    browser.storage.local
+      .set({ lastClipboardTranslation: { translation: msg.translation as string } })
+      .then(() => (sendResponse as (response: any) => void)({ success: true }))
+      .catch((err) => (sendResponse as (response: any) => void)({ success: false, error: String(err) }));
+    return true;
+  }
+
   return false;
 });
 
+/** 右クリックメニューを登録（起動時・インストール時の両方で実行） */
+function createContextMenus(): void {
+  browser.contextMenus.removeAll().then(() => {
+    browser.contextMenus.create({
+      id: "translateSelection",
+      title: "選択テキストを日本語に翻訳",
+      contexts: ["selection"],
+    });
+    browser.contextMenus.create({
+      id: "translateSelectionToEnglish",
+      title: "選択テキストを英語に翻訳",
+      contexts: ["selection"],
+    });
+    browser.contextMenus.create({
+      id: "translatePageInline",
+      title: "ページ全体を翻訳",
+      contexts: ["page"],
+    });
+    browser.contextMenus.create({
+      id: "translateClipboard",
+      title: "クリップボードを日本語に翻訳",
+      contexts: ["page"],
+    });
+    browser.contextMenus.create({
+      id: "translateClipboardToEnglish",
+      title: "クリップボードを英語に翻訳",
+      contexts: ["page"],
+    });
+    // Google Chat等の複雑なDOM用
+    browser.contextMenus.create({
+      id: "translateSelectionOverlay",
+      title: "選択テキストを翻訳（結果表示）",
+      contexts: ["selection"],
+    });
+    browser.contextMenus.create({
+      id: "translateSelectionOverlayToEnglish",
+      title: "選択テキストを英語に翻訳（結果表示）",
+      contexts: ["selection"],
+    });
+  });
+}
+
+// 拡張の起動時にもメニューを登録（リロード後すぐに表示されるようにする）
+createContextMenus();
+
 browser.runtime.onInstalled.addListener(() => {
-  browser.contextMenus.create({
-    id: "translateSelection",
-    title: "選択テキストを翻訳",
-    contexts: ["selection"]
-  });
-  browser.contextMenus.create({
-    id: "translatePageInline",
-    title: "ページ全体を翻訳",
-    contexts: ["page"]
-  });
+  createContextMenus();
 });
 
 
@@ -230,6 +299,29 @@ browser.contextMenus.onClicked.addListener(async (info: browser.Menus.OnClickDat
       }
     }
   }
+
+  if (info.menuItemId === 'translateSelectionToEnglish') {
+    if (tab?.id) {
+      try {
+        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
+        const response = await browser.tabs.sendMessage(tab.id, {
+          type: "TRANSLATE_SELECTION_TO_ENGLISH",
+          selectionText: info.selectionText
+        });
+        if (response?.success) {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        } else {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        }
+      } catch (error) {
+        console.error("翻訳エラー:", error);
+        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+      }
+    }
+  }
   
   if (info.menuItemId === 'translatePageInline') {
     if (tab?.id) {
@@ -238,6 +330,101 @@ browser.contextMenus.onClicked.addListener(async (info: browser.Menus.OnClickDat
         const response = await browser.tabs.sendMessage(tab.id, {
           type: "TRANSLATE_PAGE",
           targetLang: "ja"
+        });
+        if (response?.success) {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        } else {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        }
+      } catch (error) {
+        console.error("翻訳エラー:", error);
+        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+      }
+    }
+  }
+
+  if (info.menuItemId === 'translateClipboard') {
+    if (tab?.id) {
+      try {
+        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
+        const response = await browser.tabs.sendMessage(tab.id, {
+          type: "TRANSLATE_CLIPBOARD",
+          targetLang: "ja"
+        });
+        if (response?.success) {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        } else {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        }
+      } catch (error) {
+        console.error("翻訳エラー:", error);
+        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+      }
+    }
+  }
+
+  if (info.menuItemId === 'translateClipboardToEnglish') {
+    if (tab?.id) {
+      try {
+        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
+        const response = await browser.tabs.sendMessage(tab.id, {
+          type: "TRANSLATE_CLIPBOARD",
+          targetLang: "en"
+        });
+        if (response?.success) {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        } else {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        }
+      } catch (error) {
+        console.error("翻訳エラー:", error);
+        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+      }
+    }
+  }
+
+  // オーバーレイ表示（Google Chat等の複雑なDOM用）
+  if (info.menuItemId === 'translateSelectionOverlay') {
+    if (tab?.id) {
+      try {
+        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
+        const response = await browser.tabs.sendMessage(tab.id, {
+          type: "TRANSLATE_SELECTION_OVERLAY",
+          targetLang: "ja",
+          selectionText: info.selectionText // ブラウザが取得した選択テキストを渡す
+        });
+        if (response?.success) {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        } else {
+          await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+          setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+        }
+      } catch (error) {
+        console.error("翻訳エラー:", error);
+        await browser.action.setBadgeText({ tabId: tab.id, text: "✗" });
+        setTimeout(() => browser.action.setBadgeText({ tabId: tab.id, text: "" }), 2000);
+      }
+    }
+  }
+
+  if (info.menuItemId === 'translateSelectionOverlayToEnglish') {
+    if (tab?.id) {
+      try {
+        await browser.action.setBadgeText({ tabId: tab.id, text: "翻訳中..." });
+        const response = await browser.tabs.sendMessage(tab.id, {
+          type: "TRANSLATE_SELECTION_OVERLAY",
+          targetLang: "en",
+          selectionText: info.selectionText
         });
         if (response?.success) {
           await browser.action.setBadgeText({ tabId: tab.id, text: "✓" });
