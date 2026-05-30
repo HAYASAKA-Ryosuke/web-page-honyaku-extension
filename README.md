@@ -60,15 +60,18 @@ pnpm build:firefox
 
 ### APIキーの取り扱い
 
-**この拡張機能ではClaude APIのキーが必要です**
+**この拡張機能では Claude または Sakura AI のAPIキーが必要です**
 - **APIキーはローカルストレージに保存されます** - ブラウザのストレージAPIを使用して、ユーザーのデバイスにのみ保存されます
-- **APIキーは外部に送信されません** - APIキーはAnthropicのAPIサーバーにのみ送信され、他のサーバーには送信されません｡
+- **APIキーは外部に送信されません** - APIキーは選択した翻訳APIサーバーにのみ送信されます
 
 ### 使用方法
 
-1. [Anthropic Console](https://console.anthropic.com/)でAPIキーを取得
-2. 拡張機能のポップアップからAPIキーを設定
-3. 翻訳したいページで拡張機能を使用
+1. 利用したいAPIプロバイダを選ぶ
+2. Claude を使う場合は [Anthropic Console](https://console.anthropic.com/) でAPIキーを取得する
+3. Sakura AI を使う場合は Sakura の AI Engine で発行した `UUID:SECRET` 形式のAPIキーを使う
+4. 拡張機能のポップアップから `Provider` と `API Key` を設定する
+5. Sakura AI ではモデル `llm-jp-3.1-8x13b-instruct4` を利用する
+6. 翻訳したいページで拡張機能を使用する
 
 ### 開発
 
@@ -103,6 +106,6 @@ pnpm build:zip:firefox
 MIT
 
 ### プライバシー
-- この拡張機能は、翻訳のためにAnthropicのAPIサーバーにテキストを送信します
+- この拡張機能は、翻訳のために選択したAPIプロバイダのサーバーにテキストを送信します
 - APIキーや翻訳テキストは、ユーザーのデバイスにのみ保存されます
-- データは外部のサーバーに送信されません（AnthropicのAPIサーバーを除く）
+- データは外部のサーバーに送信されません（選択した翻訳APIサーバーを除く）

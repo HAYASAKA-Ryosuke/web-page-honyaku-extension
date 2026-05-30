@@ -14,7 +14,14 @@
     <h3>翻訳拡張機能</h3>
     
     <div class="row">
-      <label for="apiKey" style="display: block; margin-bottom: 4px; font-size: 12px;">Claude API Key:</label>
+      <label for="provider" style="display: block; margin-bottom: 4px; font-size: 12px;">Provider:</label>
+      <select id="provider" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+        <option value="claude">Claude</option>
+        <option value="sakura">Sakura AI</option>
+      </select>
+    </div>
+    <div class="row">
+      <label id="apiKeyLabel" for="apiKey" style="display: block; margin-bottom: 4px; font-size: 12px;">Claude API Key:</label>
       <input type="password" id="apiKey" placeholder="sk-ant-..." style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" />
     </div>
     <div class="row">
@@ -45,4 +52,3 @@
     <script type="module" src="./popup.ts"></script>
   </body>
 </html>
-

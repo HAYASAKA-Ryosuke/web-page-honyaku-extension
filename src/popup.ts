@@ -1,7 +1,15 @@
 import browser from "webextension-polyfill";
 
+type ProviderId = "claude" | "sakura";
+
+const DEFAULT_PROVIDER: ProviderId = "claude";
+const DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001";
+const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";
+
+const providerSelect = document.getElementById("provider") as HTMLSelectElement;
 const apiKeyInput = document.getElementById("apiKey") as HTMLInputElement;
 const modelSelect = document.getElementById("model") as HTMLSelectElement;
+const apiKeyLabel = document.getElementById("apiKeyLabel") as HTMLLabelElement;
 const showOriginalCheckbox = document.getElementById("showOriginal") as HTMLInputElement;
 const translateBtn = document.getElementById("translatePage") as HTMLButtonElement;
 const translateClipboardBtn = document.getElementById("translateClipboard") as HTMLButtonElement;
@@ -11,34 +19,113 @@ const clipboardResult = document.getElementById("clipboardResult") as HTMLDivEle
 const copyResultBtn = document.getElementById("copyResult") as HTMLButtonElement;
 const restoreBtn = document.getElementById("restoreOriginal") as HTMLButtonElement;
 
+function getProviderMeta(provider: ProviderId): {
+  apiKeyLabel: string;
+  apiKeyPlaceholder: string;
+  models: Array<{ value: string; label: string }>;
+} {
+  if (provider === "sakura") {
+    return {
+      apiKeyLabel: "Sakura AI API Key",
+      apiKeyPlaceholder: "UUID:SECRET",
+      models: [
+        {
+          value: DEFAULT_SAKURA_MODEL,
+          label: "llm-jp-3.1-8x13b-instruct4",
+        },
+      ],
+    };
+  }
+
+  return {
+    apiKeyLabel: "Claude API Key",
+    apiKeyPlaceholder: "sk-ant-...",
+    models: [
+      {
+        value: DEFAULT_CLAUDE_MODEL,
+        label: "Claude 4.5 Haiku",
+      },
+    ],
+  };
+}
+
+function normalizeProvider(value: unknown): ProviderId {
+  return value === "sakura" ? "sakura" : DEFAULT_PROVIDER;
+}
+
+function renderModelOptions(provider: ProviderId, selectedModel?: string): void {
+  const meta = getProviderMeta(provider);
+  modelSelect.innerHTML = "";
+
+  for (const option of meta.models) {
+    const element = document.createElement("option");
+    element.value = option.value;
+    element.textContent = option.label;
+    modelSelect.appendChild(element);
+  }
+
+  const nextModel = selectedModel && meta.models.some((item) => item.value === selectedModel)
+    ? selectedModel
+    : meta.models[0]?.value;
+
+  if (nextModel) {
+    modelSelect.value = nextModel;
+  }
+}
+
+function applyProviderUI(provider: ProviderId, selectedModel?: string): void {
+  const meta = getProviderMeta(provider);
+  providerSelect.value = provider;
+  apiKeyLabel.textContent = meta.apiKeyLabel;
+  apiKeyInput.placeholder = meta.apiKeyPlaceholder;
+  renderModelOptions(provider, selectedModel);
+}
+
 // 設定を読み込んで表示
 async function loadConfig() {
-  const result = await browser.storage.local.get(["claudeApiKey", "claudeModel", "showOriginal"]);
-  if (result.claudeApiKey) {
-    apiKeyInput.value = result.claudeApiKey as string;
+  const result = await browser.storage.local.get([
+    "provider",
+    "claudeApiKey",
+    "claudeModel",
+    "sakuraApiKey",
+    "sakuraModel",
+    "showOriginal",
+  ]);
+  const provider = normalizeProvider(result.provider);
+  const apiKey = provider === "sakura"
+    ? (result.sakuraApiKey as string | undefined)
+    : (result.claudeApiKey as string | undefined);
+  const model = provider === "sakura"
+    ? (result.sakuraModel as string | undefined)
+    : (result.claudeModel as string | undefined);
+
+  applyProviderUI(provider, model);
+
+  if (apiKey) {
+    apiKeyInput.value = apiKey;
   }
-  if (result.claudeModel) {
-    modelSelect.value = result.claudeModel as string;
-  }
-  // 原文表示の設定（デフォルトはtrue）
   showOriginalCheckbox.checked = result.showOriginal !== false;
 }
 
 // 設定を自動保存する関数
 async function saveConfig(): Promise<void> {
+  const provider = normalizeProvider(providerSelect.value);
   const apiKey = apiKeyInput.value.trim();
   const model = modelSelect.value;
+  const nextConfig: Record<string, string | boolean> = {
+    provider,
+    showOriginal: showOriginalCheckbox.checked,
+  };
 
-  // APIキーが空の場合は保存しない
-  if (!apiKey) {
-    return;
+  if (provider === "sakura") {
+    nextConfig.sakuraApiKey = apiKey;
+    nextConfig.sakuraModel = model;
+  } else {
+    nextConfig.claudeApiKey = apiKey;
+    nextConfig.claudeModel = model;
   }
 
-  await browser.storage.local.set({
-    claudeApiKey: apiKey,
-    claudeModel: model,
-    showOriginal: showOriginalCheckbox.checked,
-  });
+  await browser.storage.local.set(nextConfig);
 
   // コンテンツスクリプトに設定更新を通知
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -50,6 +137,25 @@ async function saveConfig(): Promise<void> {
 }
 
 // 各入力フィールドの変更時に自動保存
+providerSelect.addEventListener("change", async () => {
+  const provider = normalizeProvider(providerSelect.value);
+  const result = await browser.storage.local.get([
+    "claudeApiKey",
+    "claudeModel",
+    "sakuraApiKey",
+    "sakuraModel",
+  ]);
+  const apiKey = provider === "sakura"
+    ? (result.sakuraApiKey as string | undefined)
+    : (result.claudeApiKey as string | undefined);
+  const model = provider === "sakura"
+    ? (result.sakuraModel as string | undefined)
+    : (result.claudeModel as string | undefined);
+
+  applyProviderUI(provider, model);
+  apiKeyInput.value = apiKey || "";
+  await saveConfig();
+});
 apiKeyInput.addEventListener("blur", saveConfig);
 modelSelect.addEventListener("change", saveConfig);
 showOriginalCheckbox.addEventListener("change", saveConfig);
@@ -177,4 +283,3 @@ restoreBtn.addEventListener("click", async () => {
     restoreBtn.disabled = false;
   }
 });
-

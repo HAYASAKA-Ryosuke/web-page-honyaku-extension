@@ -25,7 +25,7 @@ export class TranslatorState {
     // デフォルト設定
     this.config = {
       provider: createClaudeProvider(),
-      maxBatch: 10, // Claude APIはレート制限があるため、バッチサイズを小さく
+      maxBatch: 10, // バックグラウンド経由のLLM API呼び出しなのでバッチサイズを小さく
       observe: true,
       minTextLen: 1,
       attrKeys: ["alt", "title", "aria-label"],
@@ -55,7 +55,7 @@ export class TranslatorState {
     // バックグラウンドスクリプト経由でAPIを呼び出すプロバイダーを使用
     // APIキーの有無はバックグラウンドスクリプト側でチェックされる
     this.config.provider = createClaudeProvider();
-    console.log("[Translator] Claude APIプロバイダーを初期化しました（バックグラウンド経由）");
+    console.log("[Translator] 翻訳APIプロバイダーを初期化しました（バックグラウンド経由）");
   }
 
   /**

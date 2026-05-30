@@ -1,19 +1,18 @@
 import browser from "webextension-polyfill";
 
-// Claude APIを呼び出す関数
-async function callClaudeAPI(
-  texts: string[],
-  targetLang: string,
-  apiKey: string,
-  model: string
-): Promise<string[]> {
-  // テキストを結合して1つのプロンプトにする
+type ProviderId = "claude" | "sakura";
+
+const DEFAULT_PROVIDER: ProviderId = "claude";
+const DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001";
+const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";
+const SAKURA_API_ENDPOINT = "https://api.ai.sakura.ad.jp/v1/chat/completions";
+
+function buildTranslationPrompt(texts: string[], targetLang: string): string {
   const combinedText = texts
     .map((text, index) => `${index + 1}. ${text}`)
     .join("\n");
 
-  // 翻訳方向に応じてプロンプトを切り替え
-  const prompt = targetLang === "en" 
+  return targetLang === "en"
     ? `以下の日本語テキストを自然な英語に翻訳してください。
 
 条件:
@@ -59,7 +58,92 @@ ${combinedText}
 
 テキスト:
 ${combinedText}
-  `
+  `;
+}
+
+function extractTranslations(texts: string[], translatedText: string): string[] {
+  const lines = translatedText
+    .split("\n")
+    .map((line: string) => line.trim())
+    .filter((line: string) => line.length > 0);
+
+  const translations = lines.map((line: string, index: number) => {
+    const translation = line.replace(/^\d+[\.\)]\s*/, "").trim();
+
+    if (!translation || translation.length === 0) {
+      return texts[index] || "";
+    }
+
+    return translation;
+  });
+
+  if (translations.length !== texts.length) {
+    console.warn(
+      `翻訳結果の数が一致しません。期待: ${texts.length}, 実際: ${translations.length}`
+    );
+    if (translations.length === 1) {
+      return texts.map((original, index) => {
+        if (index === 0 && translations[0]) {
+          return translations[0];
+        }
+        return original;
+      });
+    }
+    while (translations.length < texts.length) {
+      const originalIndex = translations.length;
+      translations.push(texts[originalIndex] || "");
+    }
+    return translations.slice(0, texts.length);
+  }
+
+  return translations.map((translation: string, index: number) => {
+    const original = texts[index];
+    if (translation === original) {
+      return original;
+    }
+    if (!translation || translation.trim().length < original.trim().length * 0.3) {
+      return original;
+    }
+    return translation;
+  });
+}
+
+function normalizeProvider(value: unknown): ProviderId {
+  return value === "sakura" ? "sakura" : DEFAULT_PROVIDER;
+}
+
+async function getTranslationSettings(): Promise<{
+  provider: ProviderId;
+  apiKey?: string;
+  model: string;
+}> {
+  const result = await browser.storage.local.get([
+    "provider",
+    "claudeApiKey",
+    "claudeModel",
+    "sakuraApiKey",
+    "sakuraModel",
+  ]);
+  const provider = normalizeProvider(result.provider);
+  const apiKey = provider === "sakura"
+    ? (result.sakuraApiKey as string | undefined)
+    : (result.claudeApiKey as string | undefined);
+  const fallbackApiKey = result.claudeApiKey as string | undefined;
+  const model = provider === "sakura"
+    ? (result.sakuraModel as string | undefined) || DEFAULT_SAKURA_MODEL
+    : (result.claudeModel as string | undefined) || DEFAULT_CLAUDE_MODEL;
+
+  return { provider, apiKey: apiKey || (provider === "claude" ? fallbackApiKey : undefined), model };
+}
+
+// Claude APIを呼び出す関数
+async function callClaudeAPI(
+  texts: string[],
+  targetLang: string,
+  apiKey: string,
+  model: string
+): Promise<string[]> {
+  const prompt = buildTranslationPrompt(texts, targetLang);
 
   console.log("[BG] Claude APIにリクエストを送信:", {
     model,
@@ -76,7 +160,7 @@ ${combinedText}
       "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: model || "claude-haiku-4-5-20251001",
+      model: model || DEFAULT_CLAUDE_MODEL,
       max_tokens: 4096,
       messages: [
         {
@@ -101,63 +185,56 @@ ${combinedText}
     throw new Error("翻訳結果が空です");
   }
 
-  // 番号付きリストから各翻訳を抽出
-  const lines = translatedText
-    .split("\n")
-    .map((line: string) => line.trim())
-    .filter((line: string) => line.length > 0);
+  return extractTranslations(texts, translatedText);
+}
 
-  // 番号を除去して翻訳テキストを抽出
-  const translations = lines.map((line: string, index: number) => {
-    // "1. " や "1)" などの番号プレフィックスを除去
-    const translation = line.replace(/^\d+[\.\)]\s*/, "").trim();
-    
-    // 翻訳結果が空の場合は元のテキストを返す
-    if (!translation || translation.length === 0) {
-      return texts[index] || "";
-    }
-    
-    return translation;
+async function callSakuraAPI(
+  texts: string[],
+  targetLang: string,
+  apiKey: string,
+  model: string
+): Promise<string[]> {
+  const prompt = buildTranslationPrompt(texts, targetLang);
+
+  console.log("[BG] Sakura AI APIにリクエストを送信:", {
+    model,
+    textCount: texts.length,
+    targetLang,
   });
 
-  // テキスト数が一致しない場合の処理
-  if (translations.length !== texts.length) {
-    console.warn(
-      `翻訳結果の数が一致しません。期待: ${texts.length}, 実際: ${translations.length}`
+  const response = await fetch(SAKURA_API_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: model || DEFAULT_SAKURA_MODEL,
+      temperature: 0.2,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      `Sakura APIエラー: ${response.status} - ${errorData.error?.message || response.statusText}`
     );
-    if (translations.length === 1) {
-      // 1つの結果しかない場合は、各テキストに対して元のテキストを返すか、翻訳結果を使用
-      return texts.map((original, index) => {
-        if (index === 0 && translations[0]) {
-          return translations[0];
-        }
-        return original; // 元のテキストを返す
-      });
-    }
-    // 不足分は元のテキストで埋める
-    while (translations.length < texts.length) {
-      const originalIndex = translations.length;
-      translations.push(texts[originalIndex] || "");
-    }
-    return translations.slice(0, texts.length);
   }
 
-  // 各翻訳結果を元のテキストと比較し、翻訳すべきではない場合は元のテキストを返す
-  return translations.map((translation: string, index: number) => {
-    const original = texts[index];
-    
-    // 翻訳結果が元のテキストと完全に同じ場合は、元のテキストを返す（翻訳されていない）
-    if (translation === original) {
-      return original;
-    }
-    
-    // 翻訳結果が空または非常に短い場合は、元のテキストを返す
-    if (!translation || translation.trim().length < original.trim().length * 0.3) {
-      return original;
-    }
-    
-    return translation;
-  });
+  const data = await response.json();
+  const translatedText = data.choices?.[0]?.message?.content || "";
+
+  if (!translatedText) {
+    throw new Error("翻訳結果が空です");
+  }
+
+  return extractTranslations(texts, translatedText);
 }
 
 // ポップアップ → バックグラウンド間メッセージ
@@ -176,21 +253,30 @@ browser.runtime.onMessage.addListener((msg: any, _sender: browser.Runtime.Messag
           targetLang: msg.targetLang,
         });
 
-        const result = await browser.storage.local.get(["claudeApiKey", "claudeModel"]);
-        const apiKey = result.claudeApiKey as string | undefined;
-        const model = (result.claudeModel as string) || "claude-haiku-4-5-20251001";
+        const { provider, apiKey, model } = await getTranslationSettings();
 
         if (!apiKey) {
-          throw new Error("Claude APIキーが設定されていません");
+          throw new Error(
+            provider === "sakura"
+              ? "Sakura AI APIキーが設定されていません"
+              : "Claude APIキーが設定されていません"
+          );
         }
 
-        console.log("[BG] Claude APIを呼び出します...");
-        const translations = await callClaudeAPI(
-          msg.texts as string[],
-          msg.targetLang as string,
-          apiKey,
-          model
-        );
+        console.log(`[BG] ${provider} APIを呼び出します...`);
+        const translations = provider === "sakura"
+          ? await callSakuraAPI(
+              msg.texts as string[],
+              msg.targetLang as string,
+              apiKey,
+              model
+            )
+          : await callClaudeAPI(
+              msg.texts as string[],
+              msg.targetLang as string,
+              apiKey,
+              model
+            );
 
         console.log("[BG] 翻訳成功:", { translationCount: translations.length });
         (sendResponse as (response: any) => void)({ success: true, translations });
