@@ -6,6 +6,7 @@ const DEFAULT_PROVIDER: ProviderId = "claude";
 const DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";
 const SAKURA_API_ENDPOINT = "https://api.ai.sakura.ad.jp/v1/chat/completions";
+const MIN_TRANSLATION_LENGTH_RATIO = 0.3;
 
 export function buildTranslationSystemPrompt(targetLang: string): string {
   return targetLang === "en"
@@ -111,7 +112,7 @@ function extractTranslations(texts: string[], translatedText: string): string[] 
     if (translation === original) {
       return original;
     }
-    if (!translation || translation.trim().length < original.trim().length * 0.3) {
+    if (!translation || translation.trim().length < original.trim().length * MIN_TRANSLATION_LENGTH_RATIO) {
       return original;
     }
     return translation;
