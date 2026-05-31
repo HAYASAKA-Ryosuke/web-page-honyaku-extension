@@ -7,13 +7,9 @@ const DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";
 const SAKURA_API_ENDPOINT = "https://api.ai.sakura.ad.jp/v1/chat/completions";
 
-function buildTranslationPrompt(texts: string[], targetLang: string): string {
-  const combinedText = texts
-    .map((text, index) => `${index + 1}. ${text}`)
-    .join("\n");
-
+export function buildTranslationSystemPrompt(targetLang: string): string {
   return targetLang === "en"
-    ? `以下の日本語テキストを自然な英語に翻訳してください。
+    ? `あなたは高精度の翻訳エンジンです。入力テキストを自然な英語に翻訳してください。
 
 条件:
 - 直訳ではなく、自然な英語として意味の流れを再構成すること
@@ -27,15 +23,12 @@ function buildTranslationPrompt(texts: string[], targetLang: string): string {
 - フィンガープリント、ハッシュ値、UUID、ID、コード、URL、メールアドレス、数値のみのテキストなど、翻訳すべきではないテキストの場合は、元のテキストをそのまま返してください
 - 翻訳すべきかどうか判断に迷う場合は、元のテキストをそのまま返してください
 
-形式:
+出力形式:
 - 元の番号を保持して、番号付きリストで返す
-- 翻訳結果のみを返す（説明不要）
-- 翻訳すべきではないテキストは元のテキストをそのまま返す
-
-テキスト:
-${combinedText}
-  `
-    : `以下の英語テキストを自然な日本語に翻訳してください。
+- 翻訳結果のみを返す
+- 説明、補足、前置き、コードブロックを付けない
+- 翻訳すべきではないテキストは元のテキストをそのまま返す`
+    : `あなたは高精度の翻訳エンジンです。入力テキストを自然な日本語に翻訳してください。
 
 条件:
 - 直訳ではなく、自然な日本語として意味の流れを再構成すること
@@ -51,10 +44,27 @@ ${combinedText}
 - フィンガープリント、ハッシュ値、UUID、ID、コード、URL、メールアドレス、数値のみのテキストなど、翻訳すべきではないテキストの場合は、元のテキストをそのまま返してください
 - 翻訳すべきかどうか判断に迷う場合は、元のテキストをそのまま返してください
 
-形式:
+出力形式:
 - 元の番号を保持して、番号付きリストで返す
-- 翻訳結果のみを返す（説明不要）
-- 翻訳すべきではないテキストは元のテキストをそのまま返す
+- 翻訳結果のみを返す
+- 説明、補足、前置き、コードブロックを付けない
+- 翻訳すべきではないテキストは元のテキストをそのまま返す`;
+}
+
+export function buildTranslationUserPrompt(texts: string[], targetLang: string): string {
+  const combinedText = texts
+    .map((text, index) => `${index + 1}. ${text}`)
+    .join("\n");
+
+  return targetLang === "en"
+    ? `以下の日本語テキストを自然な英語に翻訳してください。
+番号は入力との対応付けのため必ず保持してください。
+
+テキスト:
+${combinedText}
+  `
+    : `以下の英語テキストを自然な日本語に翻訳してください。
+番号は入力との対応付けのため必ず保持してください。
 
 テキスト:
 ${combinedText}
@@ -143,7 +153,8 @@ async function callClaudeAPI(
   apiKey: string,
   model: string
 ): Promise<string[]> {
-  const prompt = buildTranslationPrompt(texts, targetLang);
+  const systemPrompt = buildTranslationSystemPrompt(targetLang);
+  const userPrompt = buildTranslationUserPrompt(texts, targetLang);
 
   console.log("[BG] Claude APIにリクエストを送信:", {
     model,
@@ -162,10 +173,11 @@ async function callClaudeAPI(
     body: JSON.stringify({
       model: model || DEFAULT_CLAUDE_MODEL,
       max_tokens: 4096,
+      system: systemPrompt,
       messages: [
         {
           role: "user",
-          content: prompt,
+          content: userPrompt,
         },
       ],
     }),
@@ -194,7 +206,8 @@ async function callSakuraAPI(
   apiKey: string,
   model: string
 ): Promise<string[]> {
-  const prompt = buildTranslationPrompt(texts, targetLang);
+  const systemPrompt = buildTranslationSystemPrompt(targetLang);
+  const userPrompt = buildTranslationUserPrompt(texts, targetLang);
 
   console.log("[BG] Sakura AI APIにリクエストを送信:", {
     model,
@@ -213,8 +226,12 @@ async function callSakuraAPI(
       temperature: 0.2,
       messages: [
         {
+          role: "system",
+          content: systemPrompt,
+        },
+        {
           role: "user",
-          content: prompt,
+          content: userPrompt,
         },
       ],
     }),
