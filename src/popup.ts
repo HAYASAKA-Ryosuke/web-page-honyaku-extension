@@ -10,6 +10,7 @@ const providerSelect = document.getElementById("provider") as HTMLSelectElement;
 const apiKeyInput = document.getElementById("apiKey") as HTMLInputElement;
 const modelSelect = document.getElementById("model") as HTMLSelectElement;
 const apiKeyLabel = document.getElementById("apiKeyLabel") as HTMLLabelElement;
+const versionLabel = document.getElementById("version") as HTMLDivElement;
 const showOriginalCheckbox = document.getElementById("showOriginal") as HTMLInputElement;
 const translateBtn = document.getElementById("translatePage") as HTMLButtonElement;
 const translateClipboardBtn = document.getElementById("translateClipboard") as HTMLButtonElement;
@@ -168,6 +169,9 @@ function showClipboardTranslation(translation: string): void {
 
 // 初期化時に設定を読み込む & 保存済みのクリップボード翻訳結果を表示
 async function init() {
+  const manifest = browser.runtime.getManifest();
+  versionLabel.textContent = `Version ${manifest.version}`;
+
   await loadConfig();
   const result = await browser.storage.local.get(["lastClipboardTranslation"]);
   const data = result.lastClipboardTranslation as { translation: string } | undefined;
