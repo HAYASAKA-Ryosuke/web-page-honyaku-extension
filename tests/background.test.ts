@@ -29,6 +29,14 @@ describe("background translation prompts", () => {
     expect(prompt).toContain("番号付きリストで返す");
   });
 
+  it("builds a strict system prompt for Sakura/Claude Hindi translation", () => {
+    const prompt = buildTranslationSystemPrompt("hi");
+
+    expect(prompt).toContain("自然なヒンディー語に翻訳");
+    expect(prompt).toContain("簡潔で自然な口調を優先する");
+    expect(prompt).toContain("番号付きリストで返す");
+  });
+
   it("keeps the user prompt focused on the numbered source texts", () => {
     const prompt = buildTranslationUserPrompt(["alpha", "beta"], "th");
 
@@ -36,5 +44,12 @@ describe("background translation prompts", () => {
     expect(prompt).toContain("番号は入力との対応付けのため必ず保持してください");
     expect(prompt).toContain("1. alpha");
     expect(prompt).toContain("2. beta");
+  });
+
+  it("uses Hindi label in the user prompt", () => {
+    const prompt = buildTranslationUserPrompt(["alpha"], "hi");
+
+    expect(prompt).toContain("自然なहिन्दीに翻訳");
+    expect(prompt).toContain("1. alpha");
   });
 });

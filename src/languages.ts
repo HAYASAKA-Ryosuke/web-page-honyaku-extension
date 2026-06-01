@@ -1,4 +1,4 @@
-export const SUPPORTED_LANGUAGES = ["ja", "en", "th"] as const;
+export const SUPPORTED_LANGUAGES = ["ja", "en", "th", "hi"] as const;
 
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
@@ -20,7 +20,11 @@ export const LANGUAGE_META: Record<SupportedLanguage, LanguageMeta> = {
   },
   th: {
     label: "Thai",
-    nativeLabel: "ไทย",
+    nativeLabel: "タイ語",
+  },
+  hi: {
+    label: "Hindi",
+    nativeLabel: "ヒンディー語",
   },
 };
 
