@@ -1,4 +1,10 @@
 import browser from "webextension-polyfill";
+import {
+  getLanguageNativeLabel,
+  normalizeTargetLanguage,
+  SUPPORTED_LANGUAGES,
+  type SupportedLanguage,
+} from "./languages";
 
 type ProviderId = "claude" | "sakura";
 
@@ -9,8 +15,9 @@ const SAKURA_API_ENDPOINT = "https://api.ai.sakura.ad.jp/v1/chat/completions";
 const MIN_TRANSLATION_LENGTH_RATIO = 0.3;
 
 export function buildTranslationSystemPrompt(targetLang: string): string {
-  return targetLang === "en"
-    ? `あなたは高精度の翻訳エンジンです。入力テキストを自然な英語に翻訳してください。
+  const normalizedLang = normalizeTargetLanguage(targetLang);
+  if (normalizedLang === "en") {
+    return `あなたは高精度の翻訳エンジンです。入力テキストを自然な英語に翻訳してください。
 
 条件:
 - 直訳ではなく、自然な英語として意味の流れを再構成すること
@@ -28,8 +35,31 @@ export function buildTranslationSystemPrompt(targetLang: string): string {
 - 元の番号を保持して、番号付きリストで返す
 - 翻訳結果のみを返す
 - 説明、補足、前置き、コードブロックを付けない
-- 翻訳すべきではないテキストは元のテキストをそのまま返す`
-    : `あなたは高精度の翻訳エンジンです。入力テキストを自然な日本語に翻訳してください。
+- 翻訳すべきではないテキストは元のテキストをそのまま返す`;
+  }
+
+  if (normalizedLang === "th") {
+    return `あなたは高精度の翻訳エンジンです。入力テキストを自然なタイ語に翻訳してください。
+
+条件:
+- 直訳ではなく、自然なタイ語として意味の流れを再構成すること
+- チャットやメッセージでは、読みやすく自然な口調を優先する
+- 丁寧さは文脈に合わせて調整し、不自然に堅くしすぎない
+- 専門用語、製品名、固有名詞は正確に扱い、必要なら原語を残す
+- 冗長な表現を避け、タイ語として滑らかに読める文にする
+
+重要:
+- フィンガープリント、ハッシュ値、UUID、ID、コード、URL、メールアドレス、数値のみのテキストなど、翻訳すべきではないテキストの場合は、元のテキストをそのまま返してください
+- 翻訳すべきかどうか判断に迷う場合は、元のテキストをそのまま返してください
+
+出力形式:
+- 元の番号を保持して、番号付きリストで返す
+- 翻訳結果のみを返す
+- 説明、補足、前置き、コードブロックを付けない
+- 翻訳すべきではないテキストは元のテキストをそのまま返す`;
+  }
+
+  return `あなたは高精度の翻訳エンジンです。入力テキストを自然な日本語に翻訳してください。
 
 条件:
 - 直訳ではなく、自然な日本語として意味の流れを再構成すること
@@ -56,15 +86,10 @@ export function buildTranslationUserPrompt(texts: string[], targetLang: string):
   const combinedText = texts
     .map((text, index) => `${index + 1}. ${text}`)
     .join("\n");
+  const normalizedLang = normalizeTargetLanguage(targetLang);
+  const targetLabel = getLanguageNativeLabel(normalizedLang);
 
-  return targetLang === "en"
-    ? `以下の日本語テキストを自然な英語に翻訳してください。
-番号は入力との対応付けのため必ず保持してください。
-
-テキスト:
-${combinedText}
-  `
-    : `以下の英語テキストを自然な日本語に翻訳してください。
+  return `以下のテキストを自然な${targetLabel}に翻訳してください。
 番号は入力との対応付けのため必ず保持してください。
 
 テキスト:
@@ -324,42 +349,34 @@ browser.runtime.onMessage.addListener((msg: any, _sender: browser.Runtime.Messag
 /** 右クリックメニューを登録（起動時・インストール時の両方で実行） */
 function createContextMenus(): void {
   browser.contextMenus.removeAll().then(() => {
-    browser.contextMenus.create({
-      id: "translateSelection",
-      title: "選択テキストを日本語に翻訳",
-      contexts: ["selection"],
-    });
-    browser.contextMenus.create({
-      id: "translateSelectionToEnglish",
-      title: "選択テキストを英語に翻訳",
-      contexts: ["selection"],
-    });
-    browser.contextMenus.create({
-      id: "translatePageInline",
-      title: "ページ全体を翻訳",
-      contexts: ["page"],
-    });
-    browser.contextMenus.create({
-      id: "translateClipboard",
-      title: "クリップボードを日本語に翻訳",
-      contexts: ["page"],
-    });
-    browser.contextMenus.create({
-      id: "translateClipboardToEnglish",
-      title: "クリップボードを英語に翻訳",
-      contexts: ["page"],
-    });
-    // Google Chat等の複雑なDOM用
-    browser.contextMenus.create({
-      id: "translateSelectionOverlay",
-      title: "選択テキストを翻訳（結果表示）",
-      contexts: ["selection"],
-    });
-    browser.contextMenus.create({
-      id: "translateSelectionOverlayToEnglish",
-      title: "選択テキストを英語に翻訳（結果表示）",
-      contexts: ["selection"],
-    });
+    for (const lang of SUPPORTED_LANGUAGES) {
+      const langLabel = getLanguageNativeLabel(lang);
+      browser.contextMenus.create({
+        id: `translatePageInline:${lang}`,
+        title: `ページ全体を${langLabel}に翻訳`,
+        contexts: ["page"],
+      });
+      browser.contextMenus.create({
+        id: `translateSelection:${lang}`,
+        title: `選択テキストを${langLabel}に翻訳`,
+        contexts: ["selection"],
+      });
+      browser.contextMenus.create({
+        id: `translateSelectionToClipboard:${lang}`,
+        title: `選択テキストを${langLabel}に翻訳してコピー`,
+        contexts: ["selection"],
+      });
+      browser.contextMenus.create({
+        id: `translateClipboard:${lang}`,
+        title: `クリップボードを${langLabel}に翻訳`,
+        contexts: ["page"],
+      });
+      browser.contextMenus.create({
+        id: `translateSelectionOverlay:${lang}`,
+        title: `選択テキストを${langLabel}に翻訳（結果表示）`,
+        contexts: ["selection"],
+      });
+    }
   });
 }
 
@@ -392,19 +409,36 @@ async function handleMenuAction(
 /** メニューIDとメッセージのマッピング */
 type MenuActionConfig = {
   type: string;
-  targetLang?: string;
+  targetLang?: SupportedLanguage;
   includeSelectionText?: boolean;
 };
 
-const menuActionMap: Record<string, MenuActionConfig> = {
-  translateSelection: { type: "TRANSLATE_SELECTION", targetLang: "ja" },
-  translateSelectionToEnglish: { type: "TRANSLATE_SELECTION_TO_ENGLISH", includeSelectionText: true },
-  translatePageInline: { type: "TRANSLATE_PAGE", targetLang: "ja" },
-  translateClipboard: { type: "TRANSLATE_CLIPBOARD", targetLang: "ja" },
-  translateClipboardToEnglish: { type: "TRANSLATE_CLIPBOARD", targetLang: "en" },
-  translateSelectionOverlay: { type: "TRANSLATE_SELECTION_OVERLAY", targetLang: "ja", includeSelectionText: true },
-  translateSelectionOverlayToEnglish: { type: "TRANSLATE_SELECTION_OVERLAY", targetLang: "en", includeSelectionText: true },
-};
+const menuActionMap: Record<string, MenuActionConfig> = {};
+
+for (const lang of SUPPORTED_LANGUAGES) {
+  menuActionMap[`translatePageInline:${lang}`] = {
+    type: "TRANSLATE_PAGE",
+    targetLang: lang,
+  };
+  menuActionMap[`translateSelection:${lang}`] = {
+    type: "TRANSLATE_SELECTION",
+    targetLang: lang,
+  };
+  menuActionMap[`translateSelectionToClipboard:${lang}`] = {
+    type: "TRANSLATE_SELECTION_TO_CLIPBOARD",
+    targetLang: lang,
+    includeSelectionText: true,
+  };
+  menuActionMap[`translateClipboard:${lang}`] = {
+    type: "TRANSLATE_CLIPBOARD",
+    targetLang: lang,
+  };
+  menuActionMap[`translateSelectionOverlay:${lang}`] = {
+    type: "TRANSLATE_SELECTION_OVERLAY",
+    targetLang: lang,
+    includeSelectionText: true,
+  };
+}
 
 browser.contextMenus.onClicked.addListener(async (info: browser.Menus.OnClickData, tab?: browser.Tabs.Tab) => {
   if (!tab?.id) return;

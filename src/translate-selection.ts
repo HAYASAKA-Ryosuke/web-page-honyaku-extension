@@ -9,11 +9,16 @@ import { showErrorMessage, showSuccessMessage } from "./ui";
 import { injectLoadingStyles } from "./styles";
 import browser from "webextension-polyfill";
 import { getAndClearSavedSelection } from "./saved-selection";
+import {
+  DEFAULT_TARGET_LANGUAGE,
+  getLanguageNativeLabel,
+  normalizeTargetLanguage,
+} from "./languages";
 
 /**
  * 選択されたテキストを翻訳
  */
-export async function translateSelection(targetLang: string = "ja"): Promise<void> {
+export async function translateSelection(targetLang: string = DEFAULT_TARGET_LANGUAGE): Promise<void> {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) {
     showErrorMessage("テキストが選択されていません", "翻訳したいテキストを選択してください");
@@ -103,7 +108,7 @@ export async function translateSelection(targetLang: string = "ja"): Promise<voi
 /**
  * クリップボードの内容を翻訳
  */
-export async function translateClipboard(targetLang: string = "ja"): Promise<boolean> {
+export async function translateClipboard(targetLang: string = DEFAULT_TARGET_LANGUAGE): Promise<boolean> {
   let clipboardText: string;
   try {
     clipboardText = await navigator.clipboard.readText();
@@ -127,15 +132,8 @@ export async function translateClipboard(targetLang: string = "ja"): Promise<boo
   try {
     const translations = await state.config.provider.translate([trimmed], targetLang);
     if (translations.length > 0 && translations[0]) {
-      if (targetLang === "en") {
-        // 日英翻訳: 結果をクリップボードにコピー
-        await navigator.clipboard.writeText(translations[0]);
-        showSuccessMessage(
-          "英訳をクリップボードにコピーしました",
-          "Ctrl+V で貼り付けてください"
-        );
-      } else {
-        // 英日翻訳: ポップアップで表示するため保存
+      if (normalizeTargetLanguage(targetLang) === "ja") {
+        // 日本語翻訳: ポップアップで表示するため保存
         await browser.runtime.sendMessage({
           type: "STORE_CLIPBOARD_TRANSLATION",
           translation: translations[0],
@@ -143,6 +141,13 @@ export async function translateClipboard(targetLang: string = "ja"): Promise<boo
         showSuccessMessage(
           "翻訳しました",
           "拡張機能アイコンをクリックしてポップアップで結果を確認してください"
+        );
+      } else {
+        // 日本語以外: 結果をクリップボードにコピー
+        await navigator.clipboard.writeText(translations[0]);
+        showSuccessMessage(
+          `${getLanguageNativeLabel(normalizeTargetLanguage(targetLang))}訳をクリップボードにコピーしました`,
+          "Ctrl+V で貼り付けてください"
         );
       }
       return true;
@@ -157,13 +162,17 @@ export async function translateClipboard(targetLang: string = "ja"): Promise<boo
   return false;
 }
 
-// ====== 選択テキストを英語に翻訳（クリップボードにコピー） ======
+// ====== 選択テキストを翻訳してクリップボードにコピー ======
 
 /**
- * 選択されたテキストを英語に翻訳してクリップボードにコピー
+ * 選択されたテキストを指定言語に翻訳してクリップボードにコピー
  * @param browserSelectionText ブラウザのコンテキストメニューから渡された選択テキスト
  */
-export async function translateSelectionToEnglish(browserSelectionText?: string): Promise<void> {
+export async function translateSelectionToClipboard(
+  targetLang: string = DEFAULT_TARGET_LANGUAGE,
+  browserSelectionText?: string
+): Promise<void> {
+  const normalizedLang = normalizeTargetLanguage(targetLang);
   let selectedText = "";
   
   // 1. ブラウザから渡された選択テキストを優先
@@ -193,11 +202,11 @@ export async function translateSelectionToEnglish(browserSelectionText?: string)
   }
 
   try {
-    const translations = await state.config.provider.translate([selectedText], "en");
+    const translations = await state.config.provider.translate([selectedText], normalizedLang);
     if (translations.length > 0 && translations[0]) {
       await navigator.clipboard.writeText(translations[0]);
       showSuccessMessage(
-        "英訳をクリップボードにコピーしました",
+        `${getLanguageNativeLabel(normalizedLang)}訳をクリップボードにコピーしました`,
         "Ctrl+V で貼り付けてください"
       );
     } else {
@@ -219,6 +228,7 @@ export async function translateSelectionToEnglish(browserSelectionText?: string)
  */
 function showTranslationResultOverlay(original: string, translation: string, targetLang: string): void {
   injectLoadingStyles();
+  const normalizedLang = normalizeTargetLanguage(targetLang);
 
   // 既存のオーバーレイを削除
   const existing = document.getElementById("translator-result-overlay");
@@ -261,7 +271,7 @@ function showTranslationResultOverlay(original: string, translation: string, tar
     align-items: center !important;
   `;
   const headerText = document.createElement("span");
-  headerText.textContent = targetLang === "en" ? "日本語 → 英語" : "英語 → 日本語";
+  headerText.textContent = `${getLanguageNativeLabel(normalizedLang)}への翻訳`;
   header.appendChild(headerText);
 
   // 閉じるボタン
@@ -409,7 +419,10 @@ function showTranslationResultOverlay(original: string, translation: string, tar
  * @param targetLang 翻訳先言語
  * @param browserSelectionText ブラウザのコンテキストメニューから渡された選択テキスト
  */
-export async function translateSelectionToOverlay(targetLang: string = "ja", browserSelectionText?: string): Promise<void> {
+export async function translateSelectionToOverlay(
+  targetLang: string = DEFAULT_TARGET_LANGUAGE,
+  browserSelectionText?: string
+): Promise<void> {
   let selectedText = "";
   
   // 1. ブラウザから渡された選択テキストを優先
@@ -453,4 +466,3 @@ export async function translateSelectionToOverlay(targetLang: string = "ja", bro
     );
   }
 }
-

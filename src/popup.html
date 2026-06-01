@@ -39,10 +39,17 @@
     </div>
     
     <hr style="margin: 15px 0; border: none; border-top: 1px solid #ddd;">
+    <div class="row">
+      <label for="targetLanguage" style="display: block; margin-bottom: 4px; font-size: 12px;">翻訳先:</label>
+      <select id="targetLanguage" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+        <option value="ja">日本語</option>
+        <option value="en">英語</option>
+        <option value="th">ไทย</option>
+      </select>
+    </div>
     <div class="row"><button id="translatePage">ページ全体を翻訳</button></div>
     <div class="row" style="display: flex; gap: 8px;">
-      <button id="translateClipboard" style="flex: 1;">クリップボード→日本語</button>
-      <button id="translateClipboardToEnglish" style="flex: 1;">クリップボード→英語</button>
+      <button id="translateClipboard" style="flex: 1;">クリップボードを翻訳</button>
     </div>
     <div class="row" id="clipboardResultRow" style="display: none;">
       <label style="display: block; margin-bottom: 4px; font-size: 12px; color: #666;">翻訳結果</label>

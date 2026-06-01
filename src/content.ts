@@ -2,11 +2,12 @@
 import browser from "webextension-polyfill";
 import { state, initializeConfig, loadShowOriginalSetting } from "./state";
 import { translatePage } from "./translate-page";
-import { translateSelection, translateClipboard, translateSelectionToEnglish, translateSelectionToOverlay } from "./translate-selection";
+import { translateSelection, translateClipboard, translateSelectionToClipboard, translateSelectionToOverlay } from "./translate-selection";
 import { restoreOriginal } from "./restore";
 import { locateTargetByKey } from "./node-locator";
 import { addOriginalTooltip } from "./tooltip";
 import { setSavedSelection } from "./saved-selection";
+import { DEFAULT_TARGET_LANGUAGE } from "./languages";
 
 // 右クリック押下時点で選択範囲を保存（contextmenu では選択が消えていることがあるため mousedown/contextmenu で取得）
 function saveCurrentSelection() {
@@ -46,7 +47,7 @@ browser.runtime.onMessage.addListener(
     sendResponse: (response: { success: boolean; message: string }) => void
   ) => {
     if (msg.type === "TRANSLATE_PAGE") {
-      const targetLang = msg.targetLang || "ja";
+      const targetLang = msg.targetLang || DEFAULT_TARGET_LANGUAGE;
       translatePage(targetLang)
         .then(() => {
           sendResponse({ success: true, message: "翻訳が完了しました" });
@@ -62,7 +63,7 @@ browser.runtime.onMessage.addListener(
     }
 
     if (msg.type === "TRANSLATE_SELECTION") {
-      const targetLang = msg.targetLang || "ja";
+      const targetLang = msg.targetLang || DEFAULT_TARGET_LANGUAGE;
       translateSelection(targetLang)
         .then(() => {
           sendResponse({ success: true, message: "選択テキストの翻訳が完了しました" });
@@ -78,7 +79,7 @@ browser.runtime.onMessage.addListener(
     }
 
     if (msg.type === "TRANSLATE_CLIPBOARD") {
-      const targetLang = msg.targetLang || "ja";
+      const targetLang = msg.targetLang || DEFAULT_TARGET_LANGUAGE;
       translateClipboard(targetLang)
         .then((success) => {
           sendResponse({
@@ -96,10 +97,11 @@ browser.runtime.onMessage.addListener(
       return true;
     }
 
-    if (msg.type === "TRANSLATE_SELECTION_TO_ENGLISH") {
-      translateSelectionToEnglish(msg.selectionText)
+    if (msg.type === "TRANSLATE_SELECTION_TO_CLIPBOARD") {
+      const targetLang = msg.targetLang || DEFAULT_TARGET_LANGUAGE;
+      translateSelectionToClipboard(targetLang, msg.selectionText)
         .then(() => {
-          sendResponse({ success: true, message: "選択テキストの英訳が完了しました" });
+          sendResponse({ success: true, message: "選択テキストの翻訳が完了しました" });
         })
         .catch((error: Error) => {
           console.error("翻訳エラー:", error);
@@ -112,7 +114,7 @@ browser.runtime.onMessage.addListener(
     }
 
     if (msg.type === "TRANSLATE_SELECTION_OVERLAY") {
-      const targetLang = msg.targetLang || "ja";
+      const targetLang = msg.targetLang || DEFAULT_TARGET_LANGUAGE;
       translateSelectionToOverlay(targetLang, msg.selectionText)
         .then(() => {
           sendResponse({ success: true, message: "選択テキストの翻訳が完了しました" });

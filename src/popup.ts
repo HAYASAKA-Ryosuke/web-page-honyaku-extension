@@ -1,4 +1,9 @@
 import browser from "webextension-polyfill";
+import {
+  getLanguageNativeLabel,
+  normalizeTargetLanguage,
+  type SupportedLanguage,
+} from "./languages";
 
 type ProviderId = "claude" | "sakura";
 
@@ -12,9 +17,9 @@ const modelSelect = document.getElementById("model") as HTMLSelectElement;
 const apiKeyLabel = document.getElementById("apiKeyLabel") as HTMLLabelElement;
 const versionLabel = document.getElementById("version") as HTMLDivElement;
 const showOriginalCheckbox = document.getElementById("showOriginal") as HTMLInputElement;
+const targetLanguageSelect = document.getElementById("targetLanguage") as HTMLSelectElement;
 const translateBtn = document.getElementById("translatePage") as HTMLButtonElement;
 const translateClipboardBtn = document.getElementById("translateClipboard") as HTMLButtonElement;
-const translateClipboardToEnglishBtn = document.getElementById("translateClipboardToEnglish") as HTMLButtonElement;
 const clipboardResultRow = document.getElementById("clipboardResultRow") as HTMLDivElement;
 const clipboardResult = document.getElementById("clipboardResult") as HTMLDivElement;
 const copyResultBtn = document.getElementById("copyResult") as HTMLButtonElement;
@@ -91,6 +96,7 @@ async function loadConfig() {
     "sakuraApiKey",
     "sakuraModel",
     "showOriginal",
+    "targetLanguage",
   ]);
   const provider = normalizeProvider(result.provider);
   const apiKey = provider === "sakura"
@@ -106,6 +112,8 @@ async function loadConfig() {
     apiKeyInput.value = apiKey;
   }
   showOriginalCheckbox.checked = result.showOriginal !== false;
+  targetLanguageSelect.value = normalizeTargetLanguage(result.targetLanguage);
+  updateTargetLanguageUI();
 }
 
 // 設定を自動保存する関数
@@ -113,9 +121,11 @@ async function saveConfig(): Promise<void> {
   const provider = normalizeProvider(providerSelect.value);
   const apiKey = apiKeyInput.value.trim();
   const model = modelSelect.value;
+  const targetLanguage = normalizeTargetLanguage(targetLanguageSelect.value);
   const nextConfig: Record<string, string | boolean> = {
     provider,
     showOriginal: showOriginalCheckbox.checked,
+    targetLanguage,
   };
 
   if (provider === "sakura") {
@@ -160,6 +170,20 @@ providerSelect.addEventListener("change", async () => {
 apiKeyInput.addEventListener("blur", saveConfig);
 modelSelect.addEventListener("change", saveConfig);
 showOriginalCheckbox.addEventListener("change", saveConfig);
+targetLanguageSelect.addEventListener("change", async () => {
+  updateTargetLanguageUI();
+  await saveConfig();
+});
+
+function getSelectedTargetLanguage(): SupportedLanguage {
+  return normalizeTargetLanguage(targetLanguageSelect.value);
+}
+
+function updateTargetLanguageUI(): void {
+  const label = getLanguageNativeLabel(getSelectedTargetLanguage());
+  translateBtn.textContent = `ページ全体を${label}に翻訳`;
+  translateClipboardBtn.textContent = `クリップボード→${label}`;
+}
 
 // クリップボード翻訳結果をポップアップに表示
 function showClipboardTranslation(translation: string): void {
@@ -195,7 +219,7 @@ translateBtn.addEventListener("click", async () => {
     
     const response = await browser.tabs.sendMessage(tab.id, {
       type: "TRANSLATE_PAGE",
-      targetLang: "ja"
+      targetLang: getSelectedTargetLanguage(),
     });
     
     if (response?.success) {
@@ -211,7 +235,7 @@ translateBtn.addEventListener("click", async () => {
 });
 
 // クリップボードを翻訳する共通関数
-async function translateClipboardWithLang(targetLang: string, btn: HTMLButtonElement): Promise<void> {
+async function translateClipboardWithLang(targetLang: SupportedLanguage, btn: HTMLButtonElement): Promise<void> {
   try {
     btn.disabled = true;
     const text = await navigator.clipboard.readText();
@@ -241,11 +265,9 @@ async function translateClipboardWithLang(targetLang: string, btn: HTMLButtonEle
   }
 }
 
-// クリップボードを日本語に翻訳
-translateClipboardBtn.addEventListener("click", () => translateClipboardWithLang("ja", translateClipboardBtn));
-
-// クリップボードを英語に翻訳
-translateClipboardToEnglishBtn.addEventListener("click", () => translateClipboardWithLang("en", translateClipboardToEnglishBtn));
+translateClipboardBtn.addEventListener("click", () => {
+  translateClipboardWithLang(getSelectedTargetLanguage(), translateClipboardBtn);
+});
 
 // 翻訳結果をクリップボードにコピー
 copyResultBtn.addEventListener("click", async () => {
