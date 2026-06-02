@@ -2,7 +2,6 @@ import browser from "webextension-polyfill";
 import {
   getLanguageNativeLabel,
   normalizeTargetLanguage,
-  SUPPORTED_LANGUAGES,
   type SupportedLanguage,
 } from "./languages";
 
@@ -367,46 +366,66 @@ browser.runtime.onMessage.addListener((msg: any, _sender: browser.Runtime.Messag
   return false;
 });
 
+async function getCurrentTargetLanguage(): Promise<SupportedLanguage> {
+  const result = await browser.storage.local.get(["targetLanguage"]);
+  return normalizeTargetLanguage(result.targetLanguage);
+}
+
 /** 右クリックメニューを登録（起動時・インストール時の両方で実行） */
-function createContextMenus(): void {
-  browser.contextMenus.removeAll().then(() => {
-    for (const lang of SUPPORTED_LANGUAGES) {
-      const langLabel = getLanguageNativeLabel(lang);
-      browser.contextMenus.create({
-        id: `translatePageInline:${lang}`,
-        title: `ページ全体を${langLabel}に翻訳`,
-        contexts: ["page"],
-      });
-      browser.contextMenus.create({
-        id: `translateSelection:${lang}`,
-        title: `選択テキストを${langLabel}に翻訳`,
-        contexts: ["selection"],
-      });
-      browser.contextMenus.create({
-        id: `translateSelectionToClipboard:${lang}`,
-        title: `選択テキストを${langLabel}に翻訳してコピー`,
-        contexts: ["selection"],
-      });
-      browser.contextMenus.create({
-        id: `translateClipboard:${lang}`,
-        title: `クリップボードを${langLabel}に翻訳`,
-        contexts: ["page"],
-      });
-      browser.contextMenus.create({
-        id: `translateSelectionOverlay:${lang}`,
-        title: `選択テキストを${langLabel}に翻訳（結果表示）`,
-        contexts: ["selection"],
-      });
-    }
+async function createContextMenus(): Promise<void> {
+  const targetLang = await getCurrentTargetLanguage();
+  const langLabel = getLanguageNativeLabel(targetLang);
+
+  await browser.contextMenus.removeAll();
+
+  browser.contextMenus.create({
+    id: "translatorRoot",
+    title: `翻訳 (${langLabel})`,
+    contexts: ["page", "selection"],
+  });
+
+  browser.contextMenus.create({
+    id: "translatePageInline",
+    parentId: "translatorRoot",
+    title: "ページ全体を翻訳",
+    contexts: ["page"],
+  });
+  browser.contextMenus.create({
+    id: "translateClipboard",
+    parentId: "translatorRoot",
+    title: "クリップボードを翻訳",
+    contexts: ["page"],
+  });
+  browser.contextMenus.create({
+    id: "translateSelection",
+    parentId: "translatorRoot",
+    title: "選択テキストを翻訳",
+    contexts: ["selection"],
+  });
+  browser.contextMenus.create({
+    id: "translateSelectionToClipboard",
+    parentId: "translatorRoot",
+    title: "翻訳してコピー",
+    contexts: ["selection"],
+  });
+  browser.contextMenus.create({
+    id: "translateSelectionOverlay",
+    parentId: "translatorRoot",
+    title: "翻訳結果を表示",
+    contexts: ["selection"],
   });
 }
 
 // 拡張の起動時にもメニューを登録（リロード後すぐに表示されるようにする）
-createContextMenus();
+createContextMenus().catch((error) => {
+  console.error("[bg] context menu creation failed:", error);
+});
 
 browser.runtime.onInstalled.addListener(() => {
   console.log("[bg] installed");
-  createContextMenus();
+  createContextMenus().catch((error) => {
+    console.error("[bg] context menu creation failed:", error);
+  });
 });
 
 /** コンテキストメニューアクションを実行するヘルパー関数 */
@@ -430,36 +449,28 @@ async function handleMenuAction(
 /** メニューIDとメッセージのマッピング */
 type MenuActionConfig = {
   type: string;
-  targetLang?: SupportedLanguage;
   includeSelectionText?: boolean;
 };
 
-const menuActionMap: Record<string, MenuActionConfig> = {};
-
-for (const lang of SUPPORTED_LANGUAGES) {
-  menuActionMap[`translatePageInline:${lang}`] = {
+const menuActionMap: Record<string, MenuActionConfig> = {
+  translatePageInline: {
     type: "TRANSLATE_PAGE",
-    targetLang: lang,
-  };
-  menuActionMap[`translateSelection:${lang}`] = {
+  },
+  translateSelection: {
     type: "TRANSLATE_SELECTION",
-    targetLang: lang,
-  };
-  menuActionMap[`translateSelectionToClipboard:${lang}`] = {
+  },
+  translateSelectionToClipboard: {
     type: "TRANSLATE_SELECTION_TO_CLIPBOARD",
-    targetLang: lang,
     includeSelectionText: true,
-  };
-  menuActionMap[`translateClipboard:${lang}`] = {
+  },
+  translateClipboard: {
     type: "TRANSLATE_CLIPBOARD",
-    targetLang: lang,
-  };
-  menuActionMap[`translateSelectionOverlay:${lang}`] = {
+  },
+  translateSelectionOverlay: {
     type: "TRANSLATE_SELECTION_OVERLAY",
-    targetLang: lang,
     includeSelectionText: true,
-  };
-}
+  },
+};
 
 browser.contextMenus.onClicked.addListener(async (info: browser.Menus.OnClickData, tab?: browser.Tabs.Tab) => {
   if (!tab?.id) return;
@@ -468,15 +479,22 @@ browser.contextMenus.onClicked.addListener(async (info: browser.Menus.OnClickDat
   const config = menuActionMap[menuId];
   
   if (config) {
+    const targetLang = await getCurrentTargetLanguage();
     const message: { type: string; targetLang?: string; selectionText?: string } = {
       type: config.type,
+      targetLang,
     };
-    if (config.targetLang) {
-      message.targetLang = config.targetLang;
-    }
     if (config.includeSelectionText) {
       message.selectionText = info.selectionText;
     }
     await handleMenuAction(tab.id, message);
+  }
+});
+
+browser.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && changes.targetLanguage) {
+    createContextMenus().catch((error) => {
+      console.error("[bg] context menu refresh failed:", error);
+    });
   }
 });
