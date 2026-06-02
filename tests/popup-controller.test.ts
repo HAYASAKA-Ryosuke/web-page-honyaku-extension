@@ -1,0 +1,174 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createPopupController, type PopupDeps, type PopupFormState, type PopupView, type PopupViewModel } from "../src/popup-controller";
+
+function createView(initialForm?: Partial<PopupFormState>): PopupView & { lastRender: PopupViewModel | null } {
+  let form: PopupFormState = {
+    provider: "claude",
+    apiKey: "",
+    model: "claude-haiku-4-5-20251001",
+    showOriginal: true,
+    targetLanguage: "ja",
+    ...initialForm,
+  };
+  let clipboardResult = "";
+
+  return {
+    lastRender: null,
+    getFormState: () => form,
+    getClipboardResult: () => clipboardResult,
+    isSettingsOpen: () => true,
+    render(model) {
+      this.lastRender = model;
+      form = {
+        provider: model.provider,
+        apiKey: model.apiKey,
+        model: model.selectedModel,
+        showOriginal: model.showOriginal,
+        targetLanguage: model.targetLanguage,
+      };
+    },
+    setClipboardResult(text) {
+      clipboardResult = text;
+    },
+    setActionDisabled: vi.fn(),
+    flashCopyResultCopied: vi.fn(),
+  };
+}
+
+function createDeps(overrides?: Partial<PopupDeps>): PopupDeps {
+  return {
+    getManifestVersion: () => "1.3.1",
+    getStoredConfig: vi.fn().mockResolvedValue({}),
+    saveStoredConfig: vi.fn().mockResolvedValue(undefined),
+    getActiveTabId: vi.fn().mockResolvedValue(1),
+    sendTabMessage: vi.fn().mockResolvedValue({ success: true }),
+    sendRuntimeMessage: vi.fn().mockResolvedValue({ success: true, translations: ["訳文"] }),
+    readClipboardText: vi.fn().mockResolvedValue("hello"),
+    writeClipboardText: vi.fn().mockResolvedValue(undefined),
+    log: vi.fn(),
+    error: vi.fn(),
+    ...overrides,
+  };
+}
+
+describe("popup controller", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders initial state from stored config and version", async () => {
+    const view = createView();
+    const deps = createDeps({
+      getStoredConfig: vi.fn().mockResolvedValue({
+        provider: "sakura",
+        sakuraApiKey: "UUID:SECRET",
+        sakuraModel: "llm-jp-3.1-8x13b-instruct4",
+        showOriginal: false,
+        targetLanguage: "th",
+        lastClipboardTranslation: { translation: "สวัสดี" },
+      }),
+    });
+
+    const controller = createPopupController(view, deps);
+    await controller.init();
+
+    expect(view.lastRender?.provider).toBe("sakura");
+    expect(view.lastRender?.apiKey).toBe("UUID:SECRET");
+    expect(view.lastRender?.targetLanguage).toBe("th");
+    expect(view.lastRender?.showOriginal).toBe(false);
+    expect(view.lastRender?.settingsOpen).toBe(false);
+    expect(view.lastRender?.versionText).toBe("Version 1.3.1");
+    expect(view.getClipboardResult()).toBe("สวัสดี");
+  });
+
+  it("opens settings when api key is missing", async () => {
+    const view = createView();
+    const deps = createDeps({
+      getStoredConfig: vi.fn().mockResolvedValue({
+        provider: "claude",
+        claudeApiKey: "",
+      }),
+    });
+
+    const controller = createPopupController(view, deps);
+    await controller.init();
+
+    expect(view.lastRender?.settingsOpen).toBe(true);
+    expect(view.lastRender?.settingsSummary).toContain("未設定");
+  });
+
+  it("saves config and reloads content script on target language change", async () => {
+    const view = createView({
+      provider: "claude",
+      apiKey: "sk-ant",
+      model: "claude-haiku-4-5-20251001",
+      targetLanguage: "en",
+    });
+    const deps = createDeps();
+
+    const controller = createPopupController(view, deps);
+    await controller.handleTargetLanguageChange();
+
+    expect(deps.saveStoredConfig).toHaveBeenCalledWith({
+      provider: "claude",
+      showOriginal: true,
+      targetLanguage: "en",
+      claudeApiKey: "sk-ant",
+      claudeModel: "claude-haiku-4-5-20251001",
+    });
+    expect(deps.sendTabMessage).toHaveBeenCalledWith(1, { type: "RELOAD_CONFIG" });
+  });
+
+  it("uses provider-specific stored credentials on provider change", async () => {
+    const view = createView({
+      provider: "sakura",
+      apiKey: "",
+      model: "llm-jp-3.1-8x13b-instruct4",
+    });
+    const deps = createDeps({
+      getStoredConfig: vi.fn().mockResolvedValue({
+        sakuraApiKey: "UUID:SECRET",
+        sakuraModel: "llm-jp-3.1-8x13b-instruct4",
+      }),
+    });
+
+    const controller = createPopupController(view, deps);
+    await controller.handleProviderChange();
+
+    expect(view.lastRender?.provider).toBe("sakura");
+    expect(view.lastRender?.apiKey).toBe("UUID:SECRET");
+    expect(deps.saveStoredConfig).toHaveBeenCalled();
+  });
+
+  it("translates clipboard text through injected runtime dependency", async () => {
+    const view = createView({ targetLanguage: "hi" });
+    const deps = createDeps({
+      sendRuntimeMessage: vi.fn().mockResolvedValue({
+        success: true,
+        translations: ["नमस्ते"],
+      }),
+    });
+
+    const controller = createPopupController(view, deps);
+    await controller.handleTranslateClipboard();
+
+    expect(deps.sendRuntimeMessage).toHaveBeenCalledWith({
+      type: "TRANSLATE_TEXTS",
+      texts: ["hello"],
+      targetLang: "hi",
+    });
+    expect(view.getClipboardResult()).toBe("नमस्ते");
+  });
+
+  it("copies current result through injected clipboard dependency", async () => {
+    const view = createView();
+    view.setClipboardResult("copied text");
+    const deps = createDeps();
+
+    const controller = createPopupController(view, deps);
+    await controller.handleCopyResult();
+
+    expect(deps.writeClipboardText).toHaveBeenCalledWith("copied text");
+    expect(view.flashCopyResultCopied).toHaveBeenCalled();
+  });
+});
