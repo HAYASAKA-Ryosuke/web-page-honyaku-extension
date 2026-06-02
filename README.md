@@ -1,4 +1,4 @@
-# Web Page Honyaku Extension
+# 翻訳
 
 ウェブページを翻訳するためのChrome/Firefox拡張です
 

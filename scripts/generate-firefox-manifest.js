@@ -14,11 +14,11 @@ const rootDir = resolve(__dirname, "..");
 // manifest.tsから設定を読み込む（簡易版）
 const manifest = {
   manifest_version: 3,
-  name: "translation-extension",
-  description: "",
-  version: "0.1.0",
+  name: "翻訳",
+  description: "Webページや選択テキストを手早く翻訳する拡張",
+  version: "1.3.1",
   action: {
-    default_title: "translation-extension",
+    default_title: "翻訳",
     default_popup: "src/popup.html"
   },
   background: {
@@ -51,4 +51,3 @@ const manifestPath = join(distDir, "manifest.json");
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
 console.log("✅ Firefox用のmanifest.jsonを生成しました:", manifestPath);
-
