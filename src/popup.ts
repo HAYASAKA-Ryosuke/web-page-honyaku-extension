@@ -14,10 +14,13 @@ const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";
 const providerSelect = document.getElementById("provider") as HTMLSelectElement;
 const apiKeyInput = document.getElementById("apiKey") as HTMLInputElement;
 const modelSelect = document.getElementById("model") as HTMLSelectElement;
+const modelRow = document.getElementById("modelRow") as HTMLDivElement;
 const apiKeyLabel = document.getElementById("apiKeyLabel") as HTMLLabelElement;
 const versionLabel = document.getElementById("version") as HTMLDivElement;
 const showOriginalCheckbox = document.getElementById("showOriginal") as HTMLInputElement;
 const targetLanguageSelect = document.getElementById("targetLanguage") as HTMLSelectElement;
+const settingsSection = document.getElementById("settingsSection") as HTMLDetailsElement;
+const settingsSummary = document.getElementById("settingsSummary") as HTMLSpanElement;
 const translateBtn = document.getElementById("translatePage") as HTMLButtonElement;
 const translateClipboardBtn = document.getElementById("translateClipboard") as HTMLButtonElement;
 const clipboardResultRow = document.getElementById("clipboardResultRow") as HTMLDivElement;
@@ -77,6 +80,8 @@ function renderModelOptions(provider: ProviderId, selectedModel?: string): void 
   if (nextModel) {
     modelSelect.value = nextModel;
   }
+
+  modelRow.style.display = meta.models.length > 1 ? "block" : "none";
 }
 
 function applyProviderUI(provider: ProviderId, selectedModel?: string): void {
@@ -85,6 +90,17 @@ function applyProviderUI(provider: ProviderId, selectedModel?: string): void {
   apiKeyLabel.textContent = meta.apiKeyLabel;
   apiKeyInput.placeholder = meta.apiKeyPlaceholder;
   renderModelOptions(provider, selectedModel);
+  updateSettingsSummary();
+}
+
+function getProviderLabel(provider: ProviderId): string {
+  return provider === "sakura" ? "Sakura AI" : "Claude";
+}
+
+function updateSettingsSummary(): void {
+  const provider = normalizeProvider(providerSelect.value);
+  const hasApiKey = apiKeyInput.value.trim().length > 0;
+  settingsSummary.textContent = `(${getProviderLabel(provider)} / APIキー${hasApiKey ? "設定済み" : "未設定"})`;
 }
 
 // 設定を読み込んで表示
@@ -114,6 +130,8 @@ async function loadConfig() {
   showOriginalCheckbox.checked = result.showOriginal !== false;
   targetLanguageSelect.value = normalizeTargetLanguage(result.targetLanguage);
   updateTargetLanguageUI();
+  updateSettingsSummary();
+  settingsSection.open = !apiKey;
 }
 
 // 設定を自動保存する関数
@@ -165,8 +183,10 @@ providerSelect.addEventListener("change", async () => {
 
   applyProviderUI(provider, model);
   apiKeyInput.value = apiKey || "";
+  updateSettingsSummary();
   await saveConfig();
 });
+apiKeyInput.addEventListener("input", updateSettingsSummary);
 apiKeyInput.addEventListener("blur", saveConfig);
 modelSelect.addEventListener("change", saveConfig);
 showOriginalCheckbox.addEventListener("change", saveConfig);

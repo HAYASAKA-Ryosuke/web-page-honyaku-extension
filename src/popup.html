@@ -4,60 +4,167 @@
     <meta charset="utf-8" />
     <title>Popup</title>
     <style>
-      body { font: 14px system-ui, sans-serif; min-width: 280px; padding: 12px; }
-      button { padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; }
+      :root {
+        --border: #d9d9d9;
+        --muted: #6b7280;
+        --bg-soft: #f6f7f8;
+        --accent: #111827;
+      }
+
+      body {
+        font: 14px system-ui, sans-serif;
+        min-width: 300px;
+        margin: 0;
+        padding: 14px;
+        color: #111;
+      }
+
+      h3 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      button,
+      select,
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 13px;
+      }
+
+      button {
+        padding: 9px 12px;
+        background: #fff;
+        cursor: pointer;
+      }
+
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      select,
+      input {
+        padding: 8px 10px;
+      }
+
       .row { margin-top: 10px; }
-      code { background: #f6f6f6; padding: 2px 6px; border-radius: 4px; }
+      .muted { color: var(--muted); font-size: 12px; }
+      .stack { display: grid; gap: 8px; }
+      .panel {
+        margin-top: 12px;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--bg-soft);
+      }
+
+      details {
+        margin-top: 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #fff;
+      }
+
+      summary {
+        padding: 10px 12px;
+        cursor: pointer;
+        list-style: none;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      details[open] summary {
+        border-bottom: 1px solid var(--border);
+      }
+
+      .detailsBody {
+        padding: 0 12px 12px;
+      }
+
+      .inlineCheckbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .twoCol {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      #clipboardResult {
+        padding: 8px;
+        background: var(--bg-soft);
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 200px;
+        overflow-y: auto;
+      }
     </style>
   </head>
   <body>
     <h3>翻訳拡張機能</h3>
-    <div id="version" style="margin-top: -6px; margin-bottom: 10px; font-size: 11px; color: #666;"></div>
-    
-    <div class="row">
-      <label for="provider" style="display: block; margin-bottom: 4px; font-size: 12px;">Provider:</label>
-      <select id="provider" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
-        <option value="claude">Claude</option>
-        <option value="sakura">Sakura AI</option>
-      </select>
-    </div>
-    <div class="row">
-      <label id="apiKeyLabel" for="apiKey" style="display: block; margin-bottom: 4px; font-size: 12px;">Claude API Key:</label>
-      <input type="password" id="apiKey" placeholder="sk-ant-..." style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" />
-    </div>
-    <div class="row">
-      <label for="model" style="display: block; margin-bottom: 4px; font-size: 12px;">Model:</label>
-      <select id="model" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
-        <option value="claude-haiku-4-5-20251001">Claude 4.5 Haiku</option>
-      </select>
-    </div>
-    <div class="row">
-      <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer;">
-        <input type="checkbox" id="showOriginal" checked style="cursor: pointer;" />
-        <span>原文表示（マウスオーバーで表示）</span>
-      </label>
-    </div>
-    
-    <hr style="margin: 15px 0; border: none; border-top: 1px solid #ddd;">
-    <div class="row">
-      <label for="targetLanguage" style="display: block; margin-bottom: 4px; font-size: 12px;">翻訳先:</label>
-      <select id="targetLanguage" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+    <div id="version" class="muted" style="margin-top: 2px;"></div>
+
+    <div class="panel">
+      <label for="targetLanguage" style="display: block; margin-bottom: 6px; font-size: 12px;">翻訳先</label>
+      <select id="targetLanguage">
         <option value="ja">日本語</option>
         <option value="en">英語</option>
         <option value="th">タイ語</option>
         <option value="hi">ヒンディー語</option>
       </select>
+      <div class="row stack">
+        <button id="translatePage" class="primary">ページ全体を翻訳</button>
+        <button id="translateClipboard">クリップボードを翻訳</button>
+        <button id="restoreOriginal">原文に戻す</button>
+      </div>
     </div>
-    <div class="row"><button id="translatePage">ページ全体を翻訳</button></div>
-    <div class="row" style="display: flex; gap: 8px;">
-      <button id="translateClipboard" style="flex: 1;">クリップボードを翻訳</button>
-    </div>
+
+    <details id="settingsSection">
+      <summary>設定 <span id="settingsSummary" class="muted" style="font-weight: 400;"></span></summary>
+      <div class="detailsBody">
+        <div class="row">
+          <label for="provider" style="display: block; margin-bottom: 4px; font-size: 12px;">Provider</label>
+          <select id="provider">
+            <option value="claude">Claude</option>
+            <option value="sakura">Sakura AI</option>
+          </select>
+        </div>
+        <div class="row">
+          <label id="apiKeyLabel" for="apiKey" style="display: block; margin-bottom: 4px; font-size: 12px;">Claude API Key</label>
+          <input type="password" id="apiKey" placeholder="sk-ant-..." />
+        </div>
+        <div class="row" id="modelRow">
+          <label for="model" style="display: block; margin-bottom: 4px; font-size: 12px;">Model</label>
+          <select id="model">
+            <option value="claude-haiku-4-5-20251001">Claude 4.5 Haiku</option>
+          </select>
+        </div>
+        <div class="row">
+          <label class="inlineCheckbox">
+            <input type="checkbox" id="showOriginal" checked style="width: auto; cursor: pointer;" />
+            <span>原文表示（マウスオーバーで表示）</span>
+          </label>
+        </div>
+      </div>
+    </details>
+
     <div class="row" id="clipboardResultRow" style="display: none;">
-      <label style="display: block; margin-bottom: 4px; font-size: 12px; color: #666;">翻訳結果</label>
-      <div id="clipboardResult" style="padding: 8px; background: #f6f6f6; border-radius: 6px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow-y: auto;"></div>
-      <button id="copyResult" style="margin-top: 6px; font-size: 12px; padding: 4px 8px;">結果をコピー</button>
+      <label class="muted" style="display: block; margin-bottom: 4px;">翻訳結果</label>
+      <div id="clipboardResult"></div>
+      <button id="copyResult" style="margin-top: 6px; font-size: 12px; padding: 6px 8px;">結果をコピー</button>
     </div>
-    <div class="row"><button id="restoreOriginal">原文に戻す</button></div>
     <script type="module" src="./popup.ts"></script>
   </body>
 </html>
