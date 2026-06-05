@@ -54,6 +54,35 @@
       .row { margin-top: 10px; }
       .muted { color: var(--muted); font-size: 12px; }
       .stack { display: grid; gap: 8px; }
+      .targetHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .quickTargets {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .quickTargetsSwap {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1;
+        user-select: none;
+      }
+      .quickTarget {
+        width: 84px;
+        padding: 4px 8px;
+        font-size: 12px;
+        border-radius: 999px;
+      }
+      .quickTarget.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
       .panel {
         margin-top: 12px;
         padding: 10px;
@@ -117,16 +146,26 @@
     <div id="version" class="muted" style="margin-top: 2px;"></div>
 
     <div class="panel">
-      <label for="targetLanguage" style="display: block; margin-bottom: 6px; font-size: 12px;">翻訳先</label>
-      <select id="targetLanguage">
-        <option value="ja">日本語</option>
-        <option value="en">英語</option>
-        <option value="th">タイ語</option>
-        <option value="hi">ヒンディー語</option>
-      </select>
+      <div class="targetHeader">
+        <label style="display: block; font-size: 12px;">自動検出ペア</label>
+        <div class="quickTargets" aria-label="よく使う翻訳先">
+          <select class="quickTarget" id="quickTargetPrimary" data-target-slot="primary">
+            <option value="ja">日本語</option>
+            <option value="en">英語</option>
+            <option value="th">タイ語</option>
+            <option value="hi">ヒンディー語</option>
+          </select>
+          <span class="quickTargetsSwap" aria-hidden="true">⇄</span>
+          <select class="quickTarget" id="quickTargetSecondary" data-target-slot="secondary">
+            <option value="ja">日本語</option>
+            <option value="en">英語</option>
+            <option value="th">タイ語</option>
+            <option value="hi">ヒンディー語</option>
+          </select>
+        </div>
+      </div>
+      <div class="muted" style="margin-bottom: 6px;">選択テキストはこの2言語から自動判定します。</div>
       <div class="row stack">
-        <button id="translatePage" class="primary">ページ全体を翻訳</button>
-        <button id="translateClipboard">クリップボードを翻訳</button>
         <button id="restoreOriginal">原文に戻す</button>
       </div>
     </div>
@@ -157,6 +196,25 @@
             <span>原文表示（マウスオーバーで表示）</span>
           </label>
         </div>
+        <div class="row">
+          <label for="menuLanguagePrimary" style="display: block; margin-bottom: 4px; font-size: 12px;">自動検出ペア 1</label>
+          <select id="menuLanguagePrimary">
+            <option value="ja">日本語</option>
+            <option value="en">英語</option>
+            <option value="th">タイ語</option>
+            <option value="hi">ヒンディー語</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="menuLanguageSecondary" style="display: block; margin-bottom: 4px; font-size: 12px;">自動検出ペア 2</label>
+          <select id="menuLanguageSecondary">
+            <option value="ja">日本語</option>
+            <option value="en">英語</option>
+            <option value="th">タイ語</option>
+            <option value="hi">ヒンディー語</option>
+          </select>
+        </div>
+        <div class="row muted">選択テキストの「翻訳」や「翻訳結果を表示」は、この2言語を見て自動で翻訳先を決めます。</div>
       </div>
     </details>
 

@@ -1,7 +1,9 @@
 import browser from "webextension-polyfill";
 import {
   getLanguageNativeLabel,
+  normalizeLanguagePair,
   normalizeTargetLanguage,
+  resolveAutoTargetLanguage,
   type SupportedLanguage,
 } from "./languages";
 
@@ -371,19 +373,23 @@ async function getCurrentTargetLanguage(): Promise<SupportedLanguage> {
   return normalizeTargetLanguage(result.targetLanguage);
 }
 
+async function getContextMenuLanguages(): Promise<{ primary: SupportedLanguage; secondary: SupportedLanguage }> {
+  const result = await browser.storage.local.get(["menuLanguagePrimary", "menuLanguageSecondary"]);
+  return normalizeLanguagePair(result.menuLanguagePrimary, result.menuLanguageSecondary);
+}
+
 /** 右クリックメニューを登録（起動時・インストール時の両方で実行） */
 async function createContextMenus(): Promise<void> {
-  const targetLang = await getCurrentTargetLanguage();
-  const langLabel = getLanguageNativeLabel(targetLang);
+  const menuLanguages = await getContextMenuLanguages();
+  const pairLabel = `${getLanguageNativeLabel(menuLanguages.primary)} / ${getLanguageNativeLabel(menuLanguages.secondary)}`;
 
   await browser.contextMenus.removeAll();
 
   browser.contextMenus.create({
     id: "translatorRoot",
-    title: `翻訳 (${langLabel})`,
+    title: `翻訳 (${pairLabel})`,
     contexts: ["page", "selection"],
   });
-
   browser.contextMenus.create({
     id: "translatePageInline",
     parentId: "translatorRoot",
@@ -391,21 +397,9 @@ async function createContextMenus(): Promise<void> {
     contexts: ["page"],
   });
   browser.contextMenus.create({
-    id: "translateClipboard",
-    parentId: "translatorRoot",
-    title: "クリップボードを翻訳",
-    contexts: ["page"],
-  });
-  browser.contextMenus.create({
     id: "translateSelection",
     parentId: "translatorRoot",
     title: "選択テキストを翻訳",
-    contexts: ["selection"],
-  });
-  browser.contextMenus.create({
-    id: "translateSelectionToClipboard",
-    parentId: "translatorRoot",
-    title: "翻訳してコピー",
     contexts: ["selection"],
   });
   browser.contextMenus.create({
@@ -450,6 +444,11 @@ async function handleMenuAction(
 type MenuActionConfig = {
   type: string;
   includeSelectionText?: boolean;
+  targetLang?: SupportedLanguage;
+  resolveTargetLang?: (
+    selectionText: string | undefined,
+    menuLanguages: { primary: SupportedLanguage; secondary: SupportedLanguage }
+  ) => SupportedLanguage;
 };
 
 const menuActionMap: Record<string, MenuActionConfig> = {
@@ -458,17 +457,23 @@ const menuActionMap: Record<string, MenuActionConfig> = {
   },
   translateSelection: {
     type: "TRANSLATE_SELECTION",
-  },
-  translateSelectionToClipboard: {
-    type: "TRANSLATE_SELECTION_TO_CLIPBOARD",
     includeSelectionText: true,
-  },
-  translateClipboard: {
-    type: "TRANSLATE_CLIPBOARD",
+    resolveTargetLang: (selectionText, menuLanguages) =>
+      resolveAutoTargetLanguage(
+        selectionText ?? "",
+        menuLanguages.primary,
+        menuLanguages.secondary,
+      ),
   },
   translateSelectionOverlay: {
     type: "TRANSLATE_SELECTION_OVERLAY",
     includeSelectionText: true,
+    resolveTargetLang: (selectionText, menuLanguages) =>
+      resolveAutoTargetLanguage(
+        selectionText ?? "",
+        menuLanguages.primary,
+        menuLanguages.secondary,
+      ),
   },
 };
 
@@ -479,7 +484,10 @@ browser.contextMenus.onClicked.addListener(async (info: browser.Menus.OnClickDat
   const config = menuActionMap[menuId];
   
   if (config) {
-    const targetLang = await getCurrentTargetLanguage();
+    const menuLanguages = await getContextMenuLanguages();
+    const targetLang = config.resolveTargetLang
+      ? config.resolveTargetLang(info.selectionText, menuLanguages)
+      : config.targetLang ?? await getCurrentTargetLanguage();
     const message: { type: string; targetLang?: string; selectionText?: string } = {
       type: config.type,
       targetLang,
@@ -492,7 +500,10 @@ browser.contextMenus.onClicked.addListener(async (info: browser.Menus.OnClickDat
 });
 
 browser.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === "local" && changes.targetLanguage) {
+  if (
+    areaName === "local"
+    && (changes.targetLanguage || changes.menuLanguagePrimary || changes.menuLanguageSecondary)
+  ) {
     createContextMenus().catch((error) => {
       console.error("[bg] context menu refresh failed:", error);
     });

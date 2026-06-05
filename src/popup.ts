@@ -9,11 +9,12 @@ const modelRow = document.getElementById("modelRow") as HTMLDivElement;
 const apiKeyLabel = document.getElementById("apiKeyLabel") as HTMLLabelElement;
 const versionLabel = document.getElementById("version") as HTMLDivElement;
 const showOriginalCheckbox = document.getElementById("showOriginal") as HTMLInputElement;
-const targetLanguageSelect = document.getElementById("targetLanguage") as HTMLSelectElement;
+const quickTargetPrimarySelect = document.getElementById("quickTargetPrimary") as HTMLSelectElement;
+const quickTargetSecondarySelect = document.getElementById("quickTargetSecondary") as HTMLSelectElement;
+const menuLanguagePrimarySelect = document.getElementById("menuLanguagePrimary") as HTMLSelectElement;
+const menuLanguageSecondarySelect = document.getElementById("menuLanguageSecondary") as HTMLSelectElement;
 const settingsSection = document.getElementById("settingsSection") as HTMLDetailsElement;
 const settingsSummary = document.getElementById("settingsSummary") as HTMLSpanElement;
-const translateBtn = document.getElementById("translatePage") as HTMLButtonElement;
-const translateClipboardBtn = document.getElementById("translateClipboard") as HTMLButtonElement;
 const clipboardResultRow = document.getElementById("clipboardResultRow") as HTMLDivElement;
 const clipboardResult = document.getElementById("clipboardResult") as HTMLDivElement;
 const copyResultBtn = document.getElementById("copyResult") as HTMLButtonElement;
@@ -27,7 +28,9 @@ function createPopupView(): PopupView {
         apiKey: apiKeyInput.value,
         model: modelSelect.value,
         showOriginal: showOriginalCheckbox.checked,
-        targetLanguage: normalizeTargetLanguage(targetLanguageSelect.value),
+        targetLanguage: normalizeTargetLanguage(quickTargetPrimarySelect.value),
+        menuLanguagePrimary: normalizeTargetLanguage(quickTargetPrimarySelect.value),
+        menuLanguageSecondary: normalizeTargetLanguage(quickTargetSecondarySelect.value),
       };
     },
 
@@ -37,6 +40,18 @@ function createPopupView(): PopupView {
 
     isSettingsOpen(): boolean {
       return settingsSection.open;
+    },
+
+    setTargetLanguage(language): void {
+      quickTargetPrimarySelect.value = language;
+      menuLanguagePrimarySelect.value = language;
+    },
+
+    setMenuLanguages(primary, secondary): void {
+      quickTargetPrimarySelect.value = primary;
+      quickTargetSecondarySelect.value = secondary;
+      menuLanguagePrimarySelect.value = primary;
+      menuLanguageSecondarySelect.value = secondary;
     },
 
     render(model: PopupViewModel): void {
@@ -56,14 +71,13 @@ function createPopupView(): PopupView {
       modelSelect.value = model.selectedModel;
       modelRow.style.display = model.showModelRow ? "block" : "none";
       showOriginalCheckbox.checked = model.showOriginal;
-      targetLanguageSelect.value = model.targetLanguage;
+      quickTargetPrimarySelect.value = model.menuLanguagePrimary;
+      quickTargetSecondarySelect.value = model.menuLanguageSecondary;
+      menuLanguagePrimarySelect.value = model.menuLanguagePrimary;
+      menuLanguageSecondarySelect.value = model.menuLanguageSecondary;
       settingsSection.open = model.settingsOpen;
       settingsSummary.textContent = model.settingsSummary;
       versionLabel.textContent = model.versionText;
-
-      const label = targetLanguageSelect.selectedOptions[0]?.textContent ?? "";
-      translateBtn.textContent = `ページ全体を${label}に翻訳`;
-      translateClipboardBtn.textContent = `クリップボード→${label}`;
     },
 
     setClipboardResult(text: string): void {
@@ -73,12 +87,12 @@ function createPopupView(): PopupView {
 
     setActionDisabled(action, disabled): void {
       const actionMap = {
-        translatePage: translateBtn,
-        translateClipboard: translateClipboardBtn,
+        translatePage: null,
+        translateClipboard: null,
         restoreOriginal: restoreBtn,
         copyResult: copyResultBtn,
       } as const;
-      actionMap[action].disabled = disabled;
+      actionMap[action]?.toggleAttribute("disabled", disabled);
     },
 
     flashCopyResultCopied(): void {
@@ -101,6 +115,8 @@ const controller = createPopupController(createPopupView(), {
     "sakuraModel",
     "showOriginal",
     "targetLanguage",
+    "menuLanguagePrimary",
+    "menuLanguageSecondary",
     "lastClipboardTranslation",
   ]),
   saveStoredConfig: (config) => browser.storage.local.set(config),
@@ -131,14 +147,17 @@ modelSelect.addEventListener("change", () => {
 showOriginalCheckbox.addEventListener("change", () => {
   controller.handleShowOriginalChange();
 });
-targetLanguageSelect.addEventListener("change", () => {
-  controller.handleTargetLanguageChange();
+menuLanguagePrimarySelect.addEventListener("change", () => {
+  controller.handleMenuLanguagesChange();
 });
-translateBtn.addEventListener("click", () => {
-  controller.handleTranslatePage();
+menuLanguageSecondarySelect.addEventListener("change", () => {
+  controller.handleMenuLanguagesChange();
 });
-translateClipboardBtn.addEventListener("click", () => {
-  controller.handleTranslateClipboard();
+quickTargetPrimarySelect.addEventListener("change", () => {
+  controller.handleMenuLanguagesChange();
+});
+quickTargetSecondarySelect.addEventListener("change", () => {
+  controller.handleMenuLanguagesChange();
 });
 copyResultBtn.addEventListener("click", () => {
   controller.handleCopyResult();

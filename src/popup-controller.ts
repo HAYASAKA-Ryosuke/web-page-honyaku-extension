@@ -1,5 +1,5 @@
 import {
-  getLanguageNativeLabel,
+  normalizeLanguagePair,
   normalizeTargetLanguage,
   type SupportedLanguage,
 } from "./languages";
@@ -18,6 +18,8 @@ type StoredConfig = {
   sakuraModel?: string;
   showOriginal?: boolean;
   targetLanguage?: unknown;
+  menuLanguagePrimary?: unknown;
+  menuLanguageSecondary?: unknown;
   lastClipboardTranslation?: { translation: string };
 };
 
@@ -27,6 +29,8 @@ export type PopupFormState = {
   model: string;
   showOriginal: boolean;
   targetLanguage: SupportedLanguage;
+  menuLanguagePrimary: SupportedLanguage;
+  menuLanguageSecondary: SupportedLanguage;
 };
 
 type ProviderOption = {
@@ -50,6 +54,8 @@ export type PopupViewModel = {
   showModelRow: boolean;
   showOriginal: boolean;
   targetLanguage: SupportedLanguage;
+  menuLanguagePrimary: SupportedLanguage;
+  menuLanguageSecondary: SupportedLanguage;
   settingsOpen: boolean;
   settingsSummary: string;
   versionText: string;
@@ -60,6 +66,8 @@ export interface PopupView {
   getClipboardResult(): string;
   isSettingsOpen(): boolean;
   render(model: PopupViewModel): void;
+  setTargetLanguage(language: SupportedLanguage): void;
+  setMenuLanguages(primary: SupportedLanguage, secondary: SupportedLanguage): void;
   setClipboardResult(text: string): void;
   setActionDisabled(action: "translatePage" | "translateClipboard" | "restoreOriginal" | "copyResult", disabled: boolean): void;
   flashCopyResultCopied(): void;
@@ -134,6 +142,8 @@ function buildViewModel(
     showModelRow: meta.models.length > 1,
     showOriginal: form.showOriginal,
     targetLanguage: form.targetLanguage,
+    menuLanguagePrimary: form.menuLanguagePrimary,
+    menuLanguageSecondary: form.menuLanguageSecondary,
     settingsOpen: options?.settingsOpen ?? false,
     settingsSummary: buildSettingsSummary(form.provider, form.apiKey),
     versionText: options?.versionText ?? "",
@@ -149,20 +159,30 @@ function formFromStoredConfig(result: StoredConfig): PopupFormState {
     ? result.sakuraModel || DEFAULT_SAKURA_MODEL
     : result.claudeModel || DEFAULT_CLAUDE_MODEL;
 
+  const menuLanguages = normalizeLanguagePair(
+    result.menuLanguagePrimary,
+    result.menuLanguageSecondary,
+  );
+
   return {
     provider,
     apiKey,
     model,
     showOriginal: result.showOriginal !== false,
-    targetLanguage: normalizeTargetLanguage(result.targetLanguage),
+    targetLanguage: menuLanguages.primary,
+    menuLanguagePrimary: menuLanguages.primary,
+    menuLanguageSecondary: menuLanguages.secondary,
   };
 }
 
 function storedConfigFromForm(form: PopupFormState): Record<string, string | boolean> {
+  const menuLanguages = normalizeLanguagePair(form.menuLanguagePrimary, form.menuLanguageSecondary);
   const nextConfig: Record<string, string | boolean> = {
     provider: form.provider,
     showOriginal: form.showOriginal,
     targetLanguage: form.targetLanguage,
+    menuLanguagePrimary: menuLanguages.primary,
+    menuLanguageSecondary: menuLanguages.secondary,
   };
 
   if (form.provider === "sakura") {
@@ -256,7 +276,32 @@ export function createPopupController(view: PopupView, deps: PopupDeps) {
       await saveCurrentForm();
     },
 
+    async handleMenuLanguagesChange(): Promise<void> {
+      const currentForm = view.getFormState();
+      const menuLanguages = normalizeLanguagePair(
+        currentForm.menuLanguagePrimary,
+        currentForm.menuLanguageSecondary,
+      );
+      view.setMenuLanguages(menuLanguages.primary, menuLanguages.secondary);
+      const nextForm = view.getFormState();
+      view.render(buildViewModel(nextForm, {
+        settingsOpen: view.isSettingsOpen(),
+        versionText: `Version ${deps.getManifestVersion()}`,
+      }));
+      await saveCurrentForm();
+    },
+
     async handleTargetLanguageChange(): Promise<void> {
+      const form = view.getFormState();
+      view.render(buildViewModel(form, {
+        settingsOpen: view.isSettingsOpen(),
+        versionText: `Version ${deps.getManifestVersion()}`,
+      }));
+      await saveCurrentForm();
+    },
+
+    async handleQuickTargetLanguageSelect(targetLanguage: SupportedLanguage): Promise<void> {
+      view.setTargetLanguage(targetLanguage);
       const form = view.getFormState();
       view.render(buildViewModel(form, {
         settingsOpen: view.isSettingsOpen(),
