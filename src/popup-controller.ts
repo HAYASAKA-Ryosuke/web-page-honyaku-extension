@@ -20,7 +20,6 @@ type StoredConfig = {
   targetLanguage?: unknown;
   menuLanguagePrimary?: unknown;
   menuLanguageSecondary?: unknown;
-  lastClipboardTranslation?: { translation: string };
 };
 
 export type PopupFormState = {
@@ -63,14 +62,11 @@ export type PopupViewModel = {
 
 export interface PopupView {
   getFormState(): PopupFormState;
-  getClipboardResult(): string;
   isSettingsOpen(): boolean;
   render(model: PopupViewModel): void;
   setTargetLanguage(language: SupportedLanguage): void;
   setMenuLanguages(primary: SupportedLanguage, secondary: SupportedLanguage): void;
-  setClipboardResult(text: string): void;
   setActionDisabled(action: "translatePage" | "translateClipboard" | "restoreOriginal" | "copyResult", disabled: boolean): void;
-  flashCopyResultCopied(): void;
 }
 
 export interface PopupDeps {
@@ -225,10 +221,6 @@ export function createPopupController(view: PopupView, deps: PopupDeps) {
         versionText: `Version ${deps.getManifestVersion()}`,
       });
       view.render(model);
-
-      if (result.lastClipboardTranslation?.translation) {
-        view.setClipboardResult(result.lastClipboardTranslation.translation);
-      }
     },
 
     async handleProviderChange(): Promise<void> {
@@ -335,51 +327,6 @@ export function createPopupController(view: PopupView, deps: PopupDeps) {
         deps.error("翻訳エラー:", error);
       } finally {
         view.setActionDisabled("translatePage", false);
-      }
-    },
-
-    async handleTranslateClipboard(): Promise<void> {
-      view.setActionDisabled("translateClipboard", true);
-
-      try {
-        const text = await deps.readClipboardText();
-        const trimmed = text.trim();
-        if (!trimmed) {
-          view.setClipboardResult("クリップボードにテキストがありません。");
-          return;
-        }
-
-        const form = view.getFormState();
-        const response = await deps.sendRuntimeMessage({
-          type: "TRANSLATE_TEXTS",
-          texts: [trimmed],
-          targetLang: form.targetLanguage,
-        });
-
-        if (response?.success && response.translations?.length) {
-          view.setClipboardResult(response.translations[0] ?? "");
-        } else {
-          view.setClipboardResult(response?.error ?? "翻訳に失敗しました");
-        }
-      } catch (error) {
-        view.setClipboardResult(error instanceof Error ? error.message : "翻訳に失敗しました");
-      } finally {
-        view.setActionDisabled("translateClipboard", false);
-      }
-    },
-
-    async handleCopyResult(): Promise<void> {
-      const text = view.getClipboardResult().trim();
-      if (!text) {
-        return;
-      }
-
-      view.setActionDisabled("copyResult", true);
-      try {
-        await deps.writeClipboardText(text);
-        view.flashCopyResultCopied();
-      } finally {
-        view.setActionDisabled("copyResult", false);
       }
     },
 

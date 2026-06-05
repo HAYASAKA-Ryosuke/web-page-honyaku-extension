@@ -15,9 +15,6 @@ const menuLanguagePrimarySelect = document.getElementById("menuLanguagePrimary")
 const menuLanguageSecondarySelect = document.getElementById("menuLanguageSecondary") as HTMLSelectElement;
 const settingsSection = document.getElementById("settingsSection") as HTMLDetailsElement;
 const settingsSummary = document.getElementById("settingsSummary") as HTMLSpanElement;
-const clipboardResultRow = document.getElementById("clipboardResultRow") as HTMLDivElement;
-const clipboardResult = document.getElementById("clipboardResult") as HTMLDivElement;
-const copyResultBtn = document.getElementById("copyResult") as HTMLButtonElement;
 const restoreBtn = document.getElementById("restoreOriginal") as HTMLButtonElement;
 
 function createPopupView(): PopupView {
@@ -32,10 +29,6 @@ function createPopupView(): PopupView {
         menuLanguagePrimary: normalizeTargetLanguage(quickTargetPrimarySelect.value),
         menuLanguageSecondary: normalizeTargetLanguage(quickTargetSecondarySelect.value),
       };
-    },
-
-    getClipboardResult(): string {
-      return clipboardResult.textContent ?? "";
     },
 
     isSettingsOpen(): boolean {
@@ -80,27 +73,14 @@ function createPopupView(): PopupView {
       versionLabel.textContent = model.versionText;
     },
 
-    setClipboardResult(text: string): void {
-      clipboardResult.textContent = text;
-      clipboardResultRow.style.display = "block";
-    },
-
     setActionDisabled(action, disabled): void {
       const actionMap = {
         translatePage: null,
         translateClipboard: null,
         restoreOriginal: restoreBtn,
-        copyResult: copyResultBtn,
+        copyResult: null,
       } as const;
       actionMap[action]?.toggleAttribute("disabled", disabled);
-    },
-
-    flashCopyResultCopied(): void {
-      const originalText = copyResultBtn.textContent;
-      copyResultBtn.textContent = "コピーしました！";
-      window.setTimeout(() => {
-        copyResultBtn.textContent = originalText;
-      }, 1500);
     },
   };
 }
@@ -117,7 +97,6 @@ const controller = createPopupController(createPopupView(), {
     "targetLanguage",
     "menuLanguagePrimary",
     "menuLanguageSecondary",
-    "lastClipboardTranslation",
   ]),
   saveStoredConfig: (config) => browser.storage.local.set(config),
   async getActiveTabId() {
@@ -158,9 +137,6 @@ quickTargetPrimarySelect.addEventListener("change", () => {
 });
 quickTargetSecondarySelect.addEventListener("change", () => {
   controller.handleMenuLanguagesChange();
-});
-copyResultBtn.addEventListener("click", () => {
-  controller.handleCopyResult();
 });
 restoreBtn.addEventListener("click", () => {
   controller.handleRestoreOriginal();

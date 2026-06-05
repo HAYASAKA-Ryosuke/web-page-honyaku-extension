@@ -128,17 +128,6 @@
         gap: 8px;
       }
 
-      #clipboardResult {
-        padding: 8px;
-        background: var(--bg-soft);
-        border-radius: 8px;
-        font-size: 13px;
-        line-height: 1.5;
-        white-space: pre-wrap;
-        word-break: break-word;
-        max-height: 200px;
-        overflow-y: auto;
-      }
     </style>
   </head>
   <body>
@@ -218,11 +207,6 @@
       </div>
     </details>
 
-    <div class="row" id="clipboardResultRow" style="display: none;">
-      <label class="muted" style="display: block; margin-bottom: 4px;">翻訳結果</label>
-      <div id="clipboardResult"></div>
-      <button id="copyResult" style="margin-top: 6px; font-size: 12px; padding: 6px 8px;">結果をコピー</button>
-    </div>
     <script type="module" src="./popup.ts"></script>
   </body>
 </html>

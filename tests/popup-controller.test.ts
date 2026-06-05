@@ -12,12 +12,10 @@ function createView(initialForm?: Partial<PopupFormState>): PopupView & { lastRe
     menuLanguageSecondary: "en",
     ...initialForm,
   };
-  let clipboardResult = "";
 
   return {
     lastRender: null,
     getFormState: () => form,
-    getClipboardResult: () => clipboardResult,
     isSettingsOpen: () => true,
     setTargetLanguage(language) {
       form = {
@@ -44,11 +42,7 @@ function createView(initialForm?: Partial<PopupFormState>): PopupView & { lastRe
         menuLanguageSecondary: model.menuLanguageSecondary,
       };
     },
-    setClipboardResult(text) {
-      clipboardResult = text;
-    },
     setActionDisabled: vi.fn(),
-    flashCopyResultCopied: vi.fn(),
   };
 }
 
@@ -84,7 +78,6 @@ describe("popup controller", () => {
         targetLanguage: "th",
         menuLanguagePrimary: "th",
         menuLanguageSecondary: "ja",
-        lastClipboardTranslation: { translation: "สวัสดี" },
       }),
     });
 
@@ -99,7 +92,6 @@ describe("popup controller", () => {
     expect(view.lastRender?.showOriginal).toBe(false);
     expect(view.lastRender?.settingsOpen).toBe(false);
     expect(view.lastRender?.versionText).toBe("Version 1.3.2");
-    expect(view.getClipboardResult()).toBe("สวัสดี");
   });
 
   it("opens settings when api key is missing", async () => {
@@ -217,35 +209,4 @@ describe("popup controller", () => {
     expect(deps.saveStoredConfig).toHaveBeenCalled();
   });
 
-  it("translates clipboard text through injected runtime dependency", async () => {
-    const view = createView({ targetLanguage: "hi" });
-    const deps = createDeps({
-      sendRuntimeMessage: vi.fn().mockResolvedValue({
-        success: true,
-        translations: ["नमस्ते"],
-      }),
-    });
-
-    const controller = createPopupController(view, deps);
-    await controller.handleTranslateClipboard();
-
-    expect(deps.sendRuntimeMessage).toHaveBeenCalledWith({
-      type: "TRANSLATE_TEXTS",
-      texts: ["hello"],
-      targetLang: "hi",
-    });
-    expect(view.getClipboardResult()).toBe("नमस्ते");
-  });
-
-  it("copies current result through injected clipboard dependency", async () => {
-    const view = createView();
-    view.setClipboardResult("copied text");
-    const deps = createDeps();
-
-    const controller = createPopupController(view, deps);
-    await controller.handleCopyResult();
-
-    expect(deps.writeClipboardText).toHaveBeenCalledWith("copied text");
-    expect(view.flashCopyResultCopied).toHaveBeenCalled();
-  });
 });
