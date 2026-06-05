@@ -11,8 +11,6 @@ const versionLabel = document.getElementById("version") as HTMLDivElement;
 const showOriginalCheckbox = document.getElementById("showOriginal") as HTMLInputElement;
 const quickTargetPrimarySelect = document.getElementById("quickTargetPrimary") as HTMLSelectElement;
 const quickTargetSecondarySelect = document.getElementById("quickTargetSecondary") as HTMLSelectElement;
-const menuLanguagePrimarySelect = document.getElementById("menuLanguagePrimary") as HTMLSelectElement;
-const menuLanguageSecondarySelect = document.getElementById("menuLanguageSecondary") as HTMLSelectElement;
 const settingsSection = document.getElementById("settingsSection") as HTMLDetailsElement;
 const settingsSummary = document.getElementById("settingsSummary") as HTMLSpanElement;
 const restoreBtn = document.getElementById("restoreOriginal") as HTMLButtonElement;
@@ -37,14 +35,11 @@ function createPopupView(): PopupView {
 
     setTargetLanguage(language): void {
       quickTargetPrimarySelect.value = language;
-      menuLanguagePrimarySelect.value = language;
     },
 
     setMenuLanguages(primary, secondary): void {
       quickTargetPrimarySelect.value = primary;
       quickTargetSecondarySelect.value = secondary;
-      menuLanguagePrimarySelect.value = primary;
-      menuLanguageSecondarySelect.value = secondary;
     },
 
     render(model: PopupViewModel): void {
@@ -66,8 +61,6 @@ function createPopupView(): PopupView {
       showOriginalCheckbox.checked = model.showOriginal;
       quickTargetPrimarySelect.value = model.menuLanguagePrimary;
       quickTargetSecondarySelect.value = model.menuLanguageSecondary;
-      menuLanguagePrimarySelect.value = model.menuLanguagePrimary;
-      menuLanguageSecondarySelect.value = model.menuLanguageSecondary;
       settingsSection.open = model.settingsOpen;
       settingsSummary.textContent = model.settingsSummary;
       versionLabel.textContent = model.versionText;
@@ -125,12 +118,6 @@ modelSelect.addEventListener("change", () => {
 });
 showOriginalCheckbox.addEventListener("change", () => {
   controller.handleShowOriginalChange();
-});
-menuLanguagePrimarySelect.addEventListener("change", () => {
-  controller.handleMenuLanguagesChange();
-});
-menuLanguageSecondarySelect.addEventListener("change", () => {
-  controller.handleMenuLanguagesChange();
 });
 quickTargetPrimarySelect.addEventListener("change", () => {
   controller.handleMenuLanguagesChange();

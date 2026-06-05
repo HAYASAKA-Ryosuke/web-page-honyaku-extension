@@ -5,7 +5,7 @@ export default defineManifest({
   manifest_version: 3,
   name: "翻訳",
   description: "Webページや選択テキストを手早く翻訳する拡張",
-  version: "1.3.2",
+  version: "1.3.3",
   action: {
     default_title: "翻訳",
     default_popup: "src/popup.html"
