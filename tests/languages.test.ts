@@ -29,4 +29,15 @@ describe("language helpers", () => {
   it("falls back to the secondary language when detection is unclear", () => {
     expect(resolveAutoTargetLanguage("12345 hello@example.com", "ja", "th")).toBe("th");
   });
+
+  it("treats Japanese prose with a few English terms as Japanese", () => {
+    const text = "明日のmeetingでdesign reviewを実施します";
+    expect(detectLanguageFromText(text, "ja", "en")).toBe("ja");
+    expect(resolveAutoTargetLanguage(text, "ja", "en")).toBe("en");
+  });
+
+  it("does not count code blocks and URLs as English prose", () => {
+    expect(detectLanguageFromText("これは `getUserName()` の確認です", "ja", "en")).toBe("ja");
+    expect(detectLanguageFromText("https://example.com/foo", "ja", "en")).toBeNull();
+  });
 });

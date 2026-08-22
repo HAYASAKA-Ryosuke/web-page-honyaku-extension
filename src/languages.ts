@@ -74,6 +74,11 @@ function countJapaneseCharacters(text: string): number {
   return matches?.length ?? 0;
 }
 
+function countJapaneseKana(text: string): number {
+  const matches = text.match(/[\u3040-\u30ff]/g);
+  return matches?.length ?? 0;
+}
+
 function countThaiCharacters(text: string): number {
   const matches = text.match(/[\u0e00-\u0e7f]/g);
   return matches?.length ?? 0;
@@ -89,6 +94,20 @@ function countLatinCharacters(text: string): number {
   return matches?.length ?? 0;
 }
 
+function countLatinWords(text: string): number {
+  const matches = text.match(/[A-Za-z]+(?:['-][A-Za-z]+)*/g);
+  return matches?.length ?? 0;
+}
+
+function removeNonProseSegments(text: string): string {
+  return text
+    // コードブロック、インラインコード、URL、メールアドレスは言語判定から除外する
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .replace(/(?:https?:\/\/|www\.)\S+/gi, " ")
+    .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, " ");
+}
+
 function countLanguageScriptCharacters(text: string, language: SupportedLanguage): number {
   if (language === "ja") {
     return countJapaneseCharacters(text);
@@ -102,24 +121,44 @@ function countLanguageScriptCharacters(text: string, language: SupportedLanguage
   return countLatinCharacters(text);
 }
 
+function countLanguageEvidence(text: string, language: SupportedLanguage): number {
+  if (language === "en") {
+    // 英単語を文字数で数えると、混在した日本語文の用語に引っ張られるため、
+    // 単語単位で数える。
+    return countLatinWords(text);
+  }
+
+  return countLanguageScriptCharacters(text, language);
+}
+
 export function detectLanguageFromText(
   text: string,
   primary: SupportedLanguage,
   secondary: SupportedLanguage
 ): SupportedLanguage | null {
   const normalized = normalizeLanguagePair(primary, secondary);
-  const primaryCount = countLanguageScriptCharacters(text, normalized.primary);
-  const secondaryCount = countLanguageScriptCharacters(text, normalized.secondary);
+  const prose = removeNonProseSegments(text);
+  const primaryCount = countLanguageEvidence(prose, normalized.primary);
+  const secondaryCount = countLanguageEvidence(prose, normalized.secondary);
 
-  if (primaryCount === 0 && secondaryCount === 0) {
+  // 日本語は、英単語が数個混ざっただけで英語扱いにならないように、
+  // ひらがな・カタカナを文構造の強い手掛かりとして加点する。
+  const primaryScore = normalized.primary === "ja"
+    ? primaryCount + countJapaneseKana(prose)
+    : primaryCount;
+  const secondaryScore = normalized.secondary === "ja"
+    ? secondaryCount + countJapaneseKana(prose)
+    : secondaryCount;
+
+  if (primaryScore === 0 && secondaryScore === 0) {
     return null;
   }
 
-  if (primaryCount === secondaryCount) {
+  if (primaryScore === secondaryScore) {
     return null;
   }
 
-  return primaryCount > secondaryCount ? normalized.primary : normalized.secondary;
+  return primaryScore > secondaryScore ? normalized.primary : normalized.secondary;
 }
 
 export function resolveAutoTargetLanguage(
