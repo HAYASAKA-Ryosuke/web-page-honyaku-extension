@@ -6,12 +6,11 @@ import {
   resolveAutoTargetLanguage,
   type SupportedLanguage,
 } from "./languages";
-import { resolveClaudeModel } from "./model-config";
+import { DEFAULT_SAKURA_MODEL, resolveClaudeModel } from "./model-config";
 
 type ProviderId = "claude" | "sakura";
 
 const DEFAULT_PROVIDER: ProviderId = "claude";
-const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";
 const SAKURA_API_ENDPOINT = "https://api.ai.sakura.ad.jp/v1/chat/completions";
 const MIN_TRANSLATION_LENGTH_RATIO = 0.3;
 

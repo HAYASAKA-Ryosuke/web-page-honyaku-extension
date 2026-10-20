@@ -5,14 +5,14 @@ import {
 } from "./languages";
 import {
   CLAUDE_MODELS,
-  DEFAULT_CLAUDE_MODEL,
+  DEFAULT_SAKURA_MODEL,
+  SAKURA_MODELS,
   resolveClaudeModel,
 } from "./model-config";
 
 export type ProviderId = "claude" | "sakura";
 
 const DEFAULT_PROVIDER: ProviderId = "claude";
-const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";
 
 type StoredConfig = {
   provider?: unknown;
@@ -91,12 +91,7 @@ function getProviderMeta(provider: ProviderId): ProviderMeta {
     return {
       apiKeyLabel: "Sakura AI API Key",
       apiKeyPlaceholder: "UUID:SECRET",
-      models: [
-        {
-          value: DEFAULT_SAKURA_MODEL,
-          label: "llm-jp-3.1-8x13b-instruct4",
-        },
-      ],
+      models: SAKURA_MODELS,
     };
   }
 
