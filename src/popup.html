@@ -173,6 +173,10 @@
           <label id="apiKeyLabel" for="apiKey" style="display: block; margin-bottom: 4px; font-size: 12px;">Claude API Key</label>
           <input type="password" id="apiKey" placeholder="sk-ant-..." />
         </div>
+        <div class="row stack">
+          <button id="saveSettings" class="primary" type="button">Save</button>
+          <span id="saveStatus" class="muted" role="status" aria-live="polite"></span>
+        </div>
         <div class="row" id="modelRow">
           <label for="model" style="display: block; margin-bottom: 4px; font-size: 12px;">Model</label>
           <select id="model">

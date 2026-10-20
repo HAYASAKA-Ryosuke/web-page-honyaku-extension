@@ -14,6 +14,8 @@ const quickTargetSecondarySelect = document.getElementById("quickTargetSecondary
 const settingsSection = document.getElementById("settingsSection") as HTMLDetailsElement;
 const settingsSummary = document.getElementById("settingsSummary") as HTMLSpanElement;
 const restoreBtn = document.getElementById("restoreOriginal") as HTMLButtonElement;
+const saveSettingsBtn = document.getElementById("saveSettings") as HTMLButtonElement;
+const saveStatus = document.getElementById("saveStatus") as HTMLSpanElement;
 
 function createPopupView(): PopupView {
   return {
@@ -127,6 +129,19 @@ quickTargetSecondarySelect.addEventListener("change", () => {
 });
 restoreBtn.addEventListener("click", () => {
   controller.handleRestoreOriginal();
+});
+saveSettingsBtn.addEventListener("click", async () => {
+  saveSettingsBtn.disabled = true;
+  saveStatus.textContent = "";
+  try {
+    await controller.handleSave();
+    saveStatus.textContent = "Saved";
+  } catch (error) {
+    saveStatus.textContent = "Save failed";
+    console.error("設定の保存に失敗しました:", error);
+  } finally {
+    saveSettingsBtn.disabled = false;
+  }
 });
 
 controller.init();

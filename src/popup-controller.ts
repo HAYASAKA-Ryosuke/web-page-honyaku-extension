@@ -254,6 +254,10 @@ export function createPopupController(view: PopupView, deps: PopupDeps) {
       await saveCurrentForm();
     },
 
+    async handleSave(): Promise<void> {
+      await saveCurrentForm();
+    },
+
     async handleModelChange(): Promise<void> {
       await saveCurrentForm();
     },

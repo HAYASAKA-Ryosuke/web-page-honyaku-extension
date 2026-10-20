@@ -38,6 +38,12 @@ async function buildFirefox() {
       target: "es2020",
       minify: false,
       sourcemap: true,
+      // Vite's import.meta.env is unavailable in the standalone Firefox
+      // bundle. Firefox uses the documented default model unless a stored
+      // model setting overrides it.
+      define: {
+        "import.meta.env": "{}",
+      },
     });
   }
 
@@ -60,4 +66,3 @@ buildFirefox().catch((error) => {
   console.error("❌ ビルドエラー:", error);
   process.exit(1);
 });
-

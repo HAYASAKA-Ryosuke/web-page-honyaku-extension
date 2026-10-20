@@ -5,7 +5,10 @@ export type ConfiguredModel = {
 
 // The model can be changed at build time without touching the translation code.
 // Keep the documented Anthropic model as the safe default for local builds.
-const configuredClaudeModel = import.meta.env.VITE_CLAUDE_MODEL?.trim();
+// Vite provides `import.meta.env`, but the standalone Firefox esbuild bundle
+// does not. Optional chaining keeps that bundle working while preserving the
+// build-time override in Vite builds.
+const configuredClaudeModel = import.meta.env?.VITE_CLAUDE_MODEL?.trim();
 const DEFAULT_CLAUDE_MODEL_ID = "claude-haiku-4-5-20251001";
 
 export const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";

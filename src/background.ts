@@ -422,13 +422,37 @@ browser.runtime.onInstalled.addListener(() => {
 });
 
 /** コンテキストメニューアクションを実行するヘルパー関数 */
+async function sendMessageToTab(
+  tabId: number,
+  message: { type: string; targetLang?: string; selectionText?: string },
+): Promise<{ success?: boolean } | undefined> {
+  try {
+    return await browser.tabs.sendMessage(tabId, message) as { success?: boolean } | undefined;
+  } catch (error) {
+    // 拡張機能の再読み込み後など、既存タブにはコンテンツスクリプトが
+    // まだ存在しないことがある。activeTab の権限でその場で注入して再送する。
+    if (!(error instanceof Error) || !error.message.includes("Receiving end does not exist")) {
+      throw error;
+    }
+
+    const manifest = browser.runtime.getManifest();
+    const contentScript = manifest.content_scripts?.[0]?.js?.[0];
+    if (!contentScript) {
+      throw error;
+    }
+
+    await browser.tabs.executeScript(tabId, { file: contentScript });
+    return await browser.tabs.sendMessage(tabId, message) as { success?: boolean } | undefined;
+  }
+}
+
 async function handleMenuAction(
   tabId: number,
   message: { type: string; targetLang?: string; selectionText?: string }
 ): Promise<void> {
   try {
     await browser.action.setBadgeText({ tabId, text: "..." });
-    const response = await browser.tabs.sendMessage(tabId, message) as { success?: boolean } | undefined;
+    const response = await sendMessageToTab(tabId, message);
     const badgeText = response?.success ? "✓" : "✗";
     await browser.action.setBadgeText({ tabId, text: badgeText });
     setTimeout(() => browser.action.setBadgeText({ tabId, text: "" }), 2000);
