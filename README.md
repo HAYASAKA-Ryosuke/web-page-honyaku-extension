@@ -35,6 +35,9 @@ cd web-page-honyaku-extension
 # 依存関係のインストール
 pnpm install
 
+# 必要に応じてClaudeモデルをビルド時に差し替えられます
+# 例: VITE_CLAUDE_MODEL=claude-haiku-4-5-20251001 pnpm build:chrome
+
 # Chrome用のビルド
 pnpm build:chrome
 

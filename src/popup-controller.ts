@@ -3,11 +3,15 @@ import {
   normalizeTargetLanguage,
   type SupportedLanguage,
 } from "./languages";
+import {
+  CLAUDE_MODELS,
+  DEFAULT_CLAUDE_MODEL,
+  resolveClaudeModel,
+} from "./model-config";
 
 export type ProviderId = "claude" | "sakura";
 
 const DEFAULT_PROVIDER: ProviderId = "claude";
-const DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";
 
 type StoredConfig = {
@@ -99,12 +103,7 @@ function getProviderMeta(provider: ProviderId): ProviderMeta {
   return {
     apiKeyLabel: "Claude API Key",
     apiKeyPlaceholder: "sk-ant-...",
-    models: [
-      {
-        value: DEFAULT_CLAUDE_MODEL,
-        label: "Claude 4.5 Haiku",
-      },
-    ],
+    models: CLAUDE_MODELS,
   };
 }
 
@@ -153,7 +152,7 @@ function formFromStoredConfig(result: StoredConfig): PopupFormState {
     : result.claudeApiKey ?? "";
   const model = provider === "sakura"
     ? result.sakuraModel || DEFAULT_SAKURA_MODEL
-    : result.claudeModel || DEFAULT_CLAUDE_MODEL;
+    : resolveClaudeModel(result.claudeModel);
 
   const menuLanguages = normalizeLanguagePair(
     result.menuLanguagePrimary,
@@ -233,7 +232,7 @@ export function createPopupController(view: PopupView, deps: PopupDeps) {
         : result.claudeApiKey ?? "";
       const nextModel = provider === "sakura"
         ? result.sakuraModel || DEFAULT_SAKURA_MODEL
-        : result.claudeModel || DEFAULT_CLAUDE_MODEL;
+        : resolveClaudeModel(result.claudeModel);
       const nextForm: PopupFormState = {
         ...currentForm,
         provider,

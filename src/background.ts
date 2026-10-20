@@ -6,11 +6,11 @@ import {
   resolveAutoTargetLanguage,
   type SupportedLanguage,
 } from "./languages";
+import { resolveClaudeModel } from "./model-config";
 
 type ProviderId = "claude" | "sakura";
 
 const DEFAULT_PROVIDER: ProviderId = "claude";
-const DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_SAKURA_MODEL = "llm-jp-3.1-8x13b-instruct4";
 const SAKURA_API_ENDPOINT = "https://api.ai.sakura.ad.jp/v1/chat/completions";
 const MIN_TRANSLATION_LENGTH_RATIO = 0.3;
@@ -189,7 +189,7 @@ async function getTranslationSettings(): Promise<{
   const fallbackApiKey = result.claudeApiKey as string | undefined;
   const model = provider === "sakura"
     ? (result.sakuraModel as string | undefined) || DEFAULT_SAKURA_MODEL
-    : (result.claudeModel as string | undefined) || DEFAULT_CLAUDE_MODEL;
+    : resolveClaudeModel(result.claudeModel);
 
   return { provider, apiKey: apiKey || (provider === "claude" ? fallbackApiKey : undefined), model };
 }
@@ -219,7 +219,7 @@ async function callClaudeAPI(
       "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: model || DEFAULT_CLAUDE_MODEL,
+      model,
       max_tokens: 4096,
       system: systemPrompt,
       messages: [

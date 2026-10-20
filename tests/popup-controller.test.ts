@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPopupController, type PopupDeps, type PopupFormState, type PopupView, type PopupViewModel } from "../src/popup-controller";
+import { DEFAULT_CLAUDE_MODEL } from "../src/model-config";
 
 function createView(initialForm?: Partial<PopupFormState>): PopupView & { lastRender: PopupViewModel | null } {
   let form: PopupFormState = {
     provider: "claude",
     apiKey: "",
-    model: "claude-haiku-4-5-20251001",
+    model: DEFAULT_CLAUDE_MODEL,
     showOriginal: true,
     targetLanguage: "ja",
     menuLanguagePrimary: "ja",
@@ -114,7 +115,7 @@ describe("popup controller", () => {
     const view = createView({
       provider: "claude",
       apiKey: "sk-ant",
-      model: "claude-haiku-4-5-20251001",
+      model: DEFAULT_CLAUDE_MODEL,
       targetLanguage: "en",
       menuLanguagePrimary: "ja",
       menuLanguageSecondary: "en",
@@ -131,7 +132,7 @@ describe("popup controller", () => {
       menuLanguagePrimary: "ja",
       menuLanguageSecondary: "en",
       claudeApiKey: "sk-ant",
-      claudeModel: "claude-haiku-4-5-20251001",
+      claudeModel: DEFAULT_CLAUDE_MODEL,
     });
     expect(deps.sendTabMessage).toHaveBeenCalledWith(1, { type: "RELOAD_CONFIG" });
   });
@@ -140,7 +141,7 @@ describe("popup controller", () => {
     const view = createView({
       provider: "claude",
       apiKey: "sk-ant",
-      model: "claude-haiku-4-5-20251001",
+      model: DEFAULT_CLAUDE_MODEL,
       targetLanguage: "ja",
       menuLanguagePrimary: "ja",
       menuLanguageSecondary: "en",
@@ -158,7 +159,7 @@ describe("popup controller", () => {
       menuLanguagePrimary: "ja",
       menuLanguageSecondary: "en",
       claudeApiKey: "sk-ant",
-      claudeModel: "claude-haiku-4-5-20251001",
+      claudeModel: DEFAULT_CLAUDE_MODEL,
     });
   });
 
@@ -166,7 +167,7 @@ describe("popup controller", () => {
     const view = createView({
       provider: "claude",
       apiKey: "sk-ant",
-      model: "claude-haiku-4-5-20251001",
+      model: DEFAULT_CLAUDE_MODEL,
       menuLanguagePrimary: "ja",
       menuLanguageSecondary: "ja",
     });
@@ -184,7 +185,7 @@ describe("popup controller", () => {
       menuLanguagePrimary: "ja",
       menuLanguageSecondary: "en",
       claudeApiKey: "sk-ant",
-      claudeModel: "claude-haiku-4-5-20251001",
+      claudeModel: DEFAULT_CLAUDE_MODEL,
     });
   });
 
